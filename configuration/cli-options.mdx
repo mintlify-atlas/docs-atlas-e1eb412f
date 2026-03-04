@@ -1,0 +1,311 @@
+---
+title: CLI Options
+description: Command-line options for doc-kit and how they map to configuration properties
+---
+
+doc-kit supports comprehensive CLI options that map directly to configuration properties. CLI options override configuration file settings.
+
+## Configuration File Option
+
+### --config-file
+
+Specify a custom configuration file:
+
+```bash
+doc-kit generate --config-file ./doc-kit.config.mjs
+```
+
+The configuration file must be loadable via `import()` (JavaScript ESM or JSON).
+
+## Input/Output Options
+
+### -i, --input
+
+Input file patterns (glob). Can be specified multiple times:
+
+```bash
+doc-kit generate --input src/ --input lib/
+```
+
+**Maps to:** `global.input`
+
+### -o, --output
+
+Output directory for generated documentation:
+
+```bash
+doc-kit generate --output dist/
+```
+
+**Maps to:** `global.output`
+
+### --ignore
+
+Glob patterns to ignore. Can be specified multiple times:
+
+```bash
+doc-kit generate --ignore node_modules/ --ignore test/
+```
+
+**Maps to:** `global.ignore[]`
+
+## Generator Options
+
+### -t, --target
+
+Target generator(s) to run. Can be specified multiple times:
+
+```bash
+doc-kit generate --target json --target html
+```
+
+**Maps to:** `target`
+
+**Available generators:**
+- `json` - JSON output
+- `html` - HTML output
+- `metadata` - Metadata generation
+- `legacy-json` - Legacy JSON format
+- `legacy-html` - Legacy HTML format
+- And more...
+
+## Processing Options
+
+### -p, --threads
+
+Number of worker threads to use (minimum: 1):
+
+```bash
+doc-kit generate --threads 4
+```
+
+**Maps to:** `threads`  
+**Default:** Number of CPU cores
+
+### --chunk-size
+
+Number of items to process per worker thread (minimum: 1):
+
+```bash
+doc-kit generate --chunk-size 10
+```
+
+**Maps to:** `chunkSize`  
+**Default:** `10`
+
+## Version and Source Options
+
+### -v, --version
+
+Target Node.js version for documentation:
+
+```bash
+doc-kit generate --version 20.0.0
+```
+
+**Maps to:** `global.version`  
+**Default:** `process.version`
+
+### --git-ref
+
+Git reference (branch, tag, or commit SHA):
+
+```bash
+doc-kit generate --git-ref v20.0.0
+```
+
+**Maps to:** `global.ref`  
+**Default:** `'HEAD'`
+
+## URL Options
+
+### -c, --changelog
+
+Changelog URL or file path:
+
+```bash
+doc-kit generate --changelog https://raw.githubusercontent.com/nodejs/node/main/CHANGELOG.md
+```
+
+**Maps to:** `global.changelog`  
+**Default:** Auto-generated based on `repository` and `ref`
+
+### --index
+
+Index file URL or path:
+
+```bash
+doc-kit generate --index https://raw.githubusercontent.com/nodejs/node/main/doc/api/index.md
+```
+
+**Maps to:** `global.index`
+
+## Output Options
+
+### --minify
+
+Minify output files:
+
+```bash
+doc-kit generate --minify
+```
+
+**Maps to:** `global.minify`  
+**Default:** `true`
+
+## Type Mapping Options
+
+### --type-map
+
+Type map URL or file path:
+
+```bash
+doc-kit generate --type-map ./typeMap.json
+```
+
+**Maps to:** `metadata.typeMap`
+
+The type map should be a JSON file mapping type names to documentation links:
+
+```json
+{
+  "AbortController": "globals.html#class-abortcontroller",
+  "Buffer": "buffer.html#class-buffer",
+  "String": "string",
+  "Number": "number",
+  "Boolean": "boolean"
+}
+```
+
+## Complete CLI Options Reference
+
+| CLI Option                  | Config Property    | Type       | Example                   |
+| --------------------------- | ------------------ | ---------- | ------------------------- |
+| `--config-file <path>`      | -                  | `string`   | `--config-file config.js` |
+| `-i, --input <patterns...>` | `global.input`     | `string[]` | `--input src/`            |
+| `-o, --output <path>`       | `global.output`    | `string`   | `--output dist/`          |
+| `--ignore <patterns...>`    | `global.ignore[]`  | `string[]` | `--ignore test/`          |
+| `-t, --target <generator>`  | `target`           | `string[]` | `--target json`           |
+| `-p, --threads <number>`    | `threads`          | `number`   | `--threads 4`             |
+| `--chunk-size <number>`     | `chunkSize`        | `number`   | `--chunk-size 10`         |
+| `-v, --version <semver>`    | `global.version`   | `string`   | `--version 20.0.0`        |
+| `--git-ref <ref>`           | `global.ref`       | `string`   | `--git-ref v20.0.0`       |
+| `-c, --changelog <url>`     | `global.changelog` | `string`   | `--changelog https://...` |
+| `--index <url>`             | `global.index`     | `string`   | `--index file://...`      |
+| `--minify`                  | `global.minify`    | `boolean`  | `--minify`                |
+| `--type-map <url>`          | `metadata.typeMap` | `string`   | `--type-map file://...`   |
+
+## Configuration Priority
+
+When the same property is set in multiple places, doc-kit uses this precedence (highest to lowest):
+
+1. **CLI options** (highest priority)
+2. **Configuration file**
+3. **Default values** (lowest priority)
+
+### Example
+
+<Tabs>
+  <Tab title="Config File">
+    ```javascript
+    // config.mjs
+    export default {
+      global: {
+        minify: true,
+        version: '20.0.0',
+        output: 'dist/',
+      },
+      threads: 4,
+    };
+    ```
+  </Tab>
+  <Tab title="CLI Command">
+    ```bash
+    doc-kit generate \
+      --config-file config.mjs \
+      --minify false \
+      --threads 8
+    ```
+  </Tab>
+  <Tab title="Result">
+    ```javascript
+    // Effective configuration:
+    {
+      global: {
+        minify: false,        // From CLI (overrides config file)
+        version: '20.0.0',    // From config file
+        output: 'dist/',      // From config file
+        repository: 'nodejs/node', // From defaults
+        ref: 'HEAD',          // From defaults
+      },
+      threads: 8,             // From CLI (overrides config file)
+      chunkSize: 10,          // From defaults
+    }
+    ```
+  </Tab>
+</Tabs>
+
+## Common CLI Usage Patterns
+
+### Basic Generation
+
+```bash
+doc-kit generate --input src/ --output dist/
+```
+
+### With Configuration File
+
+```bash
+doc-kit generate --config-file ./doc-kit.config.mjs
+```
+
+### Override Config File Settings
+
+```bash
+doc-kit generate \
+  --config-file ./doc-kit.config.mjs \
+  --output build/ \
+  --threads 8
+```
+
+### Multiple Generators
+
+```bash
+doc-kit generate \
+  --input src/ \
+  --output dist/ \
+  --target json \
+  --target html \
+  --target metadata
+```
+
+### With Ignore Patterns
+
+```bash
+doc-kit generate \
+  --input src/ \
+  --output dist/ \
+  --ignore node_modules/ \
+  --ignore test/ \
+  --ignore '**/*.test.js'
+```
+
+### Performance Tuning
+
+```bash
+doc-kit generate \
+  --input src/ \
+  --output dist/ \
+  --threads 8 \
+  --chunk-size 20
+```
+
+### Specific Version
+
+```bash
+doc-kit generate \
+  --input src/ \
+  --output dist/ \
+  --version 20.0.0 \
+  --git-ref v20.0.0
+```

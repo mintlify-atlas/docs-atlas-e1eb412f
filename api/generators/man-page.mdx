@@ -1,0 +1,109 @@
+---
+title: 'Man Page Generator'
+description: 'Generates the Node.js man page from CLI documentation'
+---
+
+## Overview
+
+The Man Page generator creates a Unix manual page (man page) from the CLI documentation. It extracts command-line options and environment variables from the `cli.md` file and formats them according to the mdoc specification.
+
+<Info>
+  The output follows the [mdoc.7](https://man.openbsd.org/mdoc.7) formatting specification used by BSD man pages.
+</Info>
+
+## Metadata
+
+<ParamField path="name" type="string" default="man-page">
+  Generator identifier
+</ParamField>
+
+<ParamField path="version" type="string" default="1.0.0">
+  Generator version
+</ParamField>
+
+<ParamField path="dependsOn" type="string" default="metadata">
+  Requires metadata generator output as input
+</ParamField>
+
+## Configuration
+
+<ParamField path="fileName" type="string" default="node.1">
+  Output filename for the man page (section 1 for user commands)
+</ParamField>
+
+<ParamField path="cliOptionsHeaderSlug" type="string" default="options">
+  Slug of the heading that contains CLI options
+</ParamField>
+
+<ParamField path="envVarsHeaderSlug" type="string" default="environment-variables-1">
+  Slug of the heading that contains environment variables
+</ParamField>
+
+<ParamField path="templatePath" type="string" default="./template.1">
+  Path to the man page template file
+</ParamField>
+
+<ParamField path="output" type="string">
+  Output directory path for the generated man page
+</ParamField>
+
+## Output Format
+
+The generator produces:
+- **Man page file**: `node.1` (or custom filename)
+- **Format**: mdoc format with sections for options and environment variables
+- **Sections**: 
+  - `__OPTIONS__`: Command-line flags and arguments
+  - `__ENVIRONMENT__`: Environment variable documentation
+
+## Usage
+
+```bash
+doc-kit -t man-page
+```
+
+View the generated man page:
+```bash
+man ./node.1
+```
+
+## Dependency Chain
+
+```
+ast → metadata → man-page
+```
+
+The man page generator depends on:
+1. **ast** - Parses Markdown to AST
+2. **metadata** - Extracts API metadata
+3. **man-page** - Converts CLI docs to man page format
+
+## Implementation Details
+
+The generator:
+- Filters entries to only `cli` API documentation
+- Locates section headings by configured slugs
+- Extracts depth-3 headings between section boundaries
+- Converts options to mdoc format using `convertOptionToMandoc`
+- Converts environment variables using `convertEnvVarToMandoc`
+- Fills template placeholders with generated content
+
+### Section Extraction
+
+The `extractMandoc` function:
+- Takes a slice of components between section boundaries
+- Filters for depth-3 headings (individual options/variables)
+- Maps each to mdoc format using converter functions
+- Joins results into a single string
+
+### Template Replacement
+
+The template uses these placeholders:
+- `__OPTIONS__`: Replaced with formatted CLI options
+- `__ENVIRONMENT__`: Replaced with formatted environment variables
+
+<Warning>
+  The generator requires a `cli` API entry in the documentation. If not found, it throws an error.
+</Warning>
+
+Source: `src/generators/man-page/`

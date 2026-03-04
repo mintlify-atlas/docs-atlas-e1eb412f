@@ -1,0 +1,103 @@
+---
+title: 'Addon Verification Generator'
+description: 'Extracts code blocks from addons.md for C++ compilation and JavaScript validation'
+---
+
+## Overview
+
+The Addon Verification generator extracts code blocks from the `doc/api/addons.md` file to facilitate C++ compilation and JavaScript runtime validations. It organizes code examples by section for testing purposes.
+
+## Metadata
+
+<ParamField path="name" type="string" default="addon-verify">
+  Generator identifier
+</ParamField>
+
+<ParamField path="version" type="string" default="1.0.0">
+  Generator version
+</ParamField>
+
+<ParamField path="dependsOn" type="string" default="metadata">
+  Requires metadata generator output as input
+</ParamField>
+
+## Configuration
+
+<ParamField path="output" type="string">
+  Output directory path for extracted code files organized by section
+</ParamField>
+
+## Output Format
+
+The generator produces:
+- **Directory structure**: One folder per buildable section
+- **Naming**: `{index}_{normalized-section-name}/`
+- **Files**: Code files extracted from code blocks (C++, JavaScript, etc.)
+- **Organization**: Files grouped by documentation section
+
+## Usage
+
+```bash
+doc-kit -t addon-verify
+```
+
+## Dependency Chain
+
+```
+ast → metadata → addon-verify
+```
+
+The addon verification generator depends on:
+1. **ast** - Parses Markdown to AST
+2. **metadata** - Extracts API metadata
+3. **addon-verify** - Extracts and organizes code blocks
+
+## Implementation Details
+
+The generator:
+- Visits all code blocks in the AST using `unist-util-visit`
+- Extracts filename from code block comments (e.g., `// filename.cc`)
+- Groups code blocks by section name
+- Filters for buildable sections using `isBuildableSection`
+- Generates normalized folder names
+- Creates directory structure
+- Writes extracted files to appropriate folders
+
+### Filename Extraction
+
+Code blocks must include a filename comment:
+```cpp
+// addon.cc
+#include <node.h>
+// ... code ...
+```
+
+The generator uses the `EXTRACT_CODE_FILENAME_COMMENT` regex pattern to extract the filename.
+
+### Section Filtering
+
+The `isBuildableSection` function determines which sections contain compilable/testable code:
+- Checks for presence of build configuration files
+- Validates code completeness
+- Ensures section is intended for verification
+
+### Folder Naming
+
+Folder names are generated using:
+1. `normalizeSectionName`: Converts to lowercase, replaces spaces with hyphens
+2. `generateSectionFolderName`: Prepends index for ordering
+
+Example: `"Hello World"` → `0_hello-world/`
+
+### File Generation
+
+The `generateFileList` function:
+- Takes code blocks for a section
+- Extracts filename and content from each block
+- Returns array of file objects ready for writing
+
+<Note>
+  This generator is specifically designed for the Node.js addons documentation and expects the filename comment pattern used in `addons.md`.
+</Note>
+
+Source: `src/generators/addon-verify/`

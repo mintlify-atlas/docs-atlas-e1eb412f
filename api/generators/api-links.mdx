@@ -1,0 +1,121 @@
+---
+title: 'API Links Generator'
+description: 'Maps publicly accessible functions to their source locations in the Node.js repository'
+---
+
+## Overview
+
+The API Links generator creates a mapping of publicly accessible functions in Node.js to their source code locations in the GitHub repository. This enables linking from documentation to implementation.
+
+<Info>
+  Unlike other generators, this processes JavaScript source files rather than Markdown documentation files.
+</Info>
+
+## Metadata
+
+<ParamField path="name" type="string" default="api-links">
+  Generator identifier
+</ParamField>
+
+<ParamField path="version" type="string" default="1.0.0">
+  Generator version
+</ParamField>
+
+<ParamField path="dependsOn" type="string" default="ast-js">
+  Requires JavaScript AST generator output as input (not Markdown)
+</ParamField>
+
+## Configuration
+
+<ParamField path="output" type="string">
+  Output directory path for the generated apilinks.json file
+</ParamField>
+
+<ParamField path="minify" type="boolean" default="false">
+  Enable JSON minification (removes whitespace)
+</ParamField>
+
+<ParamField path="ref" type="string">
+  Git reference (branch/tag) for generating GitHub blob URLs
+</ParamField>
+
+<ParamField path="repo" type="string">
+  Repository path for generating GitHub URLs
+</ParamField>
+
+## Output Format
+
+The generator produces:
+- **Single file**: `apilinks.json`
+- **Format**: Object mapping function names to GitHub URLs
+- **Example**:
+  ```json
+  {
+    "http.createServer": "https://github.com/nodejs/node/blob/main/lib/http.js#L45",
+    "fs.readFile": "https://github.com/nodejs/node/blob/main/lib/fs.js#L234"
+  }
+  ```
+
+## Usage
+
+```bash
+doc-kit -t api-links --sources "lib/**/*.js"
+```
+
+## Dependency Chain
+
+```
+ast-js → api-links
+```
+
+The API links generator depends on:
+1. **ast-js** - Parses JavaScript files to AST
+2. **api-links** - Extracts exports and maps to source locations
+
+## Implementation Details
+
+The generator:
+- Iterates through JavaScript AST programs
+- Extracts exported functions and classes using `extractExports`
+- Finds definitions and their line numbers using `findDefinitions`
+- Checks for indirect references using `checkIndirectReferences`
+- Generates GitHub blob URLs with line anchors
+- Outputs mapping to `apilinks.json`
+
+### Export Extraction
+
+The `extractExports` function:
+- Analyzes `module.exports` assignments
+- Identifies exported functions, classes, and properties
+- Maps export names to their definitions
+- Handles various export patterns (direct, indirect, etc.)
+
+### Definition Finding
+
+The `findDefinitions` function:
+- Traverses the AST to locate function/class definitions
+- Records line numbers for each definition
+- Handles:
+  - Function declarations
+  - Class declarations
+  - Variable declarations with function expressions
+  - Method definitions
+
+### Indirect References
+
+The `checkIndirectReferences` function:
+- Identifies functions referenced through variables
+- Resolves aliases and re-exports
+- Ensures complete mapping of public API
+
+### URL Generation
+
+GitHub URLs are generated using:
+- Base URL from `GITHUB_BLOB_URL` template
+- Repository and reference from configuration
+- File basename (e.g., `http.js`)
+- Line number anchor (e.g., `#L45`)
+
+Example: `https://github.com/nodejs/node/blob/main/lib/http.js#L45`
+
+Source: `src/generators/api-links/`

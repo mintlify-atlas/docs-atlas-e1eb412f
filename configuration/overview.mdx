@@ -1,0 +1,111 @@
+---
+title: Configuration Overview
+description: Learn how to configure doc-kit for your documentation generation needs
+---
+
+doc-kit provides a flexible configuration system that allows you to customize every aspect of the documentation generation process. Configuration can be provided through dedicated configuration files or via CLI options.
+
+## Configuration Methods
+
+There are three ways to configure doc-kit, listed in order of precedence (highest to lowest):
+
+1. **Configuration file** - Pass a custom config file using `--config-file`
+2. **CLI options** - Override specific settings via command-line arguments
+3. **Default values** - Built-in defaults used when no configuration is provided
+
+## Configuration File Support
+
+Configuration files must be loadable via an `import()` call. Supported formats include:
+
+- **JavaScript/ESM** (`.mjs`, `.js` with `"type": "module"`)
+- **JSON** (`.json`)
+
+<Tabs>
+  <Tab title="JavaScript">
+    ```javascript
+    // doc-kit.config.mjs
+    export default {
+      global: {
+        version: '20.0.0',
+        minify: true,
+        repository: 'nodejs/node',
+        ref: 'main',
+        baseURL: 'https://nodejs.org/docs/',
+        input: 'src/',
+        output: 'dist/',
+        ignore: ['node_modules/', 'test/'],
+      },
+      
+      threads: 4,
+      chunkSize: 10,
+      
+      // Generator-specific configurations
+      json: {
+        format: 'json',
+        minify: false, // Override global setting
+      },
+    };
+    ```
+  </Tab>
+  <Tab title="JSON">
+    ```json
+    {
+      "global": {
+        "version": "20.0.0",
+        "minify": true,
+        "repository": "nodejs/node",
+        "ref": "main",
+        "baseURL": "https://nodejs.org/docs/",
+        "input": "src/",
+        "output": "dist/",
+        "ignore": ["node_modules/", "test/"]
+      },
+      "threads": 4,
+      "chunkSize": 10,
+      "json": {
+        "format": "json",
+        "minify": false
+      }
+    }
+    ```
+  </Tab>
+</Tabs>
+
+## Using a Configuration File
+
+Pass your configuration file to doc-kit using the `--config-file` option:
+
+```bash
+doc-kit generate --config-file ./doc-kit.config.mjs
+```
+
+## Configuration Structure
+
+A doc-kit configuration object consists of:
+
+- **`global`** - Settings that apply to all generators unless overridden
+- **`threads`** - Number of worker threads to use for parallel processing
+- **`chunkSize`** - Number of items to process per worker thread
+- **`target`** - Array of generator names to run
+- **Generator-specific overrides** - Per-generator configuration that inherits from `global`
+
+## Configuration Merging
+
+When multiple configuration sources are provided, doc-kit merges them using a deep merge strategy:
+
+1. Start with built-in defaults
+2. Apply configuration file settings
+3. Apply CLI option overrides
+
+This allows you to maintain a base configuration file while overriding specific values via CLI when needed.
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="File Format" icon="file-code" href="/configuration/file-format">
+    Learn about the configuration file structure and all available properties
+  </Card>
+  <Card title="CLI Options" icon="terminal" href="/configuration/cli-options">
+    See how CLI options map to configuration properties
+  </Card>
+</CardGroup>

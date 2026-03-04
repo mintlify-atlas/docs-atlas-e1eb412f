@@ -1,0 +1,95 @@
+---
+title: 'Legacy JSON Generator'
+description: 'Generates the legacy version of JSON API docs for retro-compatibility'
+---
+
+## Overview
+
+The Legacy JSON generator produces the legacy version of the API documentation in JSON format. This generator maintains backward compatibility with existing tools while newer JSON schemas are being developed.
+
+## Metadata
+
+<ParamField path="name" type="string" default="legacy-json">
+  Generator identifier
+</ParamField>
+
+<ParamField path="version" type="string" default="1.0.0">
+  Generator version
+</ParamField>
+
+<ParamField path="dependsOn" type="string" default="metadata">
+  Requires metadata generator output as input
+</ParamField>
+
+<ParamField path="hasParallelProcessor" type="boolean" default="true">
+  Supports parallel processing for improved performance
+</ParamField>
+
+## Configuration
+
+<ParamField path="ref" type="string" default="main">
+  Git reference (branch/tag) for source links
+</ParamField>
+
+<ParamField path="minify" type="boolean" default="false">
+  Enable JSON minification (removes whitespace)
+</ParamField>
+
+<ParamField path="output" type="string">
+  Output directory path for generated JSON files
+</ParamField>
+
+## Output Format
+
+The generator produces:
+- **JSON files**: One per API module (e.g., `http.json`, `fs.json`)
+- **Format**: Legacy schema structure for backward compatibility
+- **Indentation**: 2 spaces (unless minified)
+
+## Usage
+
+```bash
+doc-kit -t legacy-json
+```
+
+With minification:
+```bash
+doc-kit -t legacy-json --config.legacy-json.minify=true
+```
+
+## Dependency Chain
+
+```
+ast → metadata → legacy-json
+```
+
+The legacy JSON generator depends on:
+1. **ast** - Parses Markdown to AST
+2. **metadata** - Extracts API metadata
+3. **legacy-json** - Converts to legacy JSON format
+
+## Implementation Details
+
+The generator:
+- Groups nodes by module using `groupNodesByModule`
+- Filters for depth-1 heading nodes (top-level modules)
+- Processes chunks in parallel using worker threads
+- Builds JSON sections using `buildSection` utility
+- Converts to legacy JSON format via `legacyToJSON`
+- Streams results as they complete
+
+### Parallel Processing
+
+The `processChunk` function runs in worker threads:
+- Takes pre-grouped module entries to avoid redundant processing
+- Builds sections for assigned modules
+- Returns JSON-ready objects
+
+### Performance Optimization
+
+The generator optimizes performance by:
+- Pre-grouping entries to avoid sending all ~4900+ entries to each worker
+- Streaming chunks as they complete for immediate file writing
+- Using worker threads for CPU-intensive JSON building
+
+Source: `src/generators/legacy-json/`

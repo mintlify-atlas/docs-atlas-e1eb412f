@@ -1,97 +1,88 @@
 ---
-title: "Introduction"
-description: "Welcome to the new home for your documentation"
+title: Introduction
+description: doc-kit is a powerful CLI tool to generate API documentation for Node.js, built by the Node.js core team
 ---
 
-## Setting up
+# Introduction to doc-kit
 
-Get your documentation site up and running in minutes.
+`@nodejs/doc-kit` is a CLI tool designed to generate API documentation for Node.js. Created by the Node.js core team, it transforms markdown files into various documentation formats including HTML, JSON, man pages, and more.
 
-<Card
-  title="Start here"
-  icon="rocket"
-  href="/quickstart"
-  horizontal
->
-  Follow our three step quickstart guide.
-</Card>
+<Note>
+  Originally developed to modernize the Node.js documentation tooling, doc-kit provides a flexible, generator-based architecture that supports multiple output formats from a single source.
+</Note>
 
-## Make it yours
+## Key Features
 
-Design a docs site that looks great and empowers your users.
-
-<Columns cols={2}>
-  <Card
-    title="Edit locally"
-    icon="pen-to-square"
-    href="/development"
-  >
-    Edit your docs locally and preview them in real time.
+<CardGroup cols={2}>
+  <Card title="Multiple Output Formats" icon="file-lines">
+    Generate documentation in various formats: HTML, JSON, man pages, LLM-optimized text, and search databases
   </Card>
-  <Card
-    title="Customize your site"
-    icon="palette"
-    href="/essentials/settings"
-  >
-    Customize the design and colors of your site to match your brand.
+  
+  <Card title="Parallel Processing" icon="bolt">
+    Built-in multi-threading support processes documentation files in parallel for fast generation
   </Card>
-    <Card
-    title="Set up navigation"
-    icon="map"
-    href="/essentials/navigation"
-  >
-    Organize your docs to help users find what they need and succeed with your product.
+  
+  <Card title="Flexible Pipeline" icon="diagram-project">
+    Generator-based architecture with automatic dependency resolution and streaming support
   </Card>
-  <Card
-    title="API documentation"
-    icon="terminal"
-    href="/api-reference/introduction"
-  >
-    Auto-generate API documentation from OpenAPI specifications.
+  
+  <Card title="Modern Tooling" icon="wrench">
+    Uses modern parsing with unified/remark, syntax highlighting with Shiki, and search with Orama
   </Card>
-</Columns>
+</CardGroup>
 
-## Create beautiful pages
+## What Can You Build?
 
-Everything you need to create world-class documentation.
+doc-kit is versatile enough to generate:
 
-<Columns cols={2}>
-  <Card
-    title="Write with MDX"
-    icon="pen-fancy"
-    href="/essentials/markdown"
-  >
-    Use MDX to style your docs pages.
-  </Card>
-  <Card
-    title="Code samples"
-    icon="code"
-    href="/essentials/code"
-  >
-    Add sample code to demonstrate how to use your product.
-  </Card>
-  <Card
-    title="Images"
-    icon="image"
-    href="/essentials/images"
-  >
-    Display images and other media.
-  </Card>
-  <Card
-    title="Reusable snippets"
-    icon="recycle"
-    href="/essentials/reusable-snippets"
-  >
-    Write once and reuse across your docs.
-  </Card>
-</Columns>
+- **Legacy-compatible HTML** - 1:1 match with existing Node.js documentation
+- **Modern web documentation** - Redesigned documentation pages with search functionality
+- **Man pages** - Unix manual pages for command-line reference
+- **JSON API references** - Structured data for custom tools and integrations
+- **LLM-optimized documentation** - Text format optimized for language models
+- **Search databases** - Orama-powered search indices
 
-## Need inspiration?
+## Get Started
 
-<Card
-  title="See complete examples"
-  icon="stars"
-  href="https://mintlify.com/customers"
->
-  Browse our showcase of exceptional documentation sites.
-</Card>
+<CardGroup cols={2}>
+  <Card title="Installation" icon="download" href="/installation">
+    Install doc-kit using npm, yarn, or pnpm
+  </Card>
+  
+  <Card title="Quick Start" icon="rocket" href="/quickstart">
+    Generate your first documentation in minutes
+  </Card>
+  
+  <Card title="Configuration" icon="gear" href="/configuration/overview">
+    Learn about configuration options and customization
+  </Card>
+  
+  <Card title="Generators" icon="wand-magic-sparkles" href="/generators/overview">
+    Explore available generators and create custom ones
+  </Card>
+</CardGroup>
+
+## How It Works
+
+doc-kit uses a generator pipeline to transform your markdown documentation:
+
+```
+Markdown Files → AST Parser → Metadata Extractor → Target Generators → Output
+```
+
+Each generator in the pipeline:
+1. Takes input from a previous generator or raw files
+2. Processes the data into a different format
+3. Yields output for the next generator or final output
+
+<Tip>
+  Generators automatically handle dependencies, so you can focus on choosing the output format you need without worrying about the pipeline setup.
+</Tip>
+
+## Community
+
+doc-kit is an open-source project maintained by the Node.js core team:
+
+- **GitHub Repository**: [nodejs/api-docs-tooling](https://github.com/nodejs/api-docs-tooling)
+- **Issue Tracker**: [Report bugs or request features](https://github.com/nodejs/node/issues/52343)
+- **License**: MIT

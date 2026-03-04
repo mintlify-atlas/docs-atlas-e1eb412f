@@ -1,0 +1,480 @@
+---
+title: Creating Custom Generators
+description: Learn how to build custom generators for doc-kit
+---
+
+This guide explains how to create new documentation generators for `@nodejs/doc-kit`. Generators transform API documentation through a pipeline, taking input from previous generators and yielding output for consumption.
+
+## Generator Structure
+
+A generator consists of several files organized in a directory:
+
+```
+src/generators/my-format/
+├── index.mjs         # Generator metadata (required)
+├── generate.mjs      # Generator implementation (required)
+├── constants.mjs     # Constants (optional)
+├── types.d.ts        # TypeScript types (required)
+└── utils/            # Utility functions (optional)
+    └── formatter.mjs
+```
+
+## Creating a Basic Generator
+
+<Steps>
+  <Step title="Define TypeScript Types">
+    Create a `types.d.ts` file with a `Generator` export:
+
+    ```typescript
+    export type Generator = GeneratorMetadata<
+      {
+        // Custom configuration for your generator
+        myCustomOption: string;
+      },
+      Generate<InputToMyGenerator, Promise<OutputOfMyGenerator>>,
+      // Optional: For parallel processing support
+      ProcessChunk<
+        InputToMyParallelProcessor,
+        OutputOfMyParallelProcessor,
+        DependenciesOfMyParallelProcessor
+      >
+    >;
+    ```
+
+    **Type parameters**:
+    - First parameter: Custom configuration object
+    - Second parameter: `generate` function signature
+    - Third parameter: Optional `processChunk` function signature
+  </Step>
+
+  <Step title="Define Generator Metadata">
+    Create `index.mjs` with generator metadata using `createLazyGenerator`:
+
+    ```javascript
+    // src/generators/my-format/index.mjs
+    import { createLazyGenerator } from '../../utils/generators.mjs';
+
+    /**
+     * Generates output in MyFormat.
+     *
+     * @type {import('./types').Generator}
+     */
+    export default createLazyGenerator({
+      name: 'my-format',
+
+      version: '1.0.0',
+
+      description: 'Generates documentation in MyFormat',
+
+      // Declare dependency on another generator
+      dependsOn: 'metadata',
+
+      defaultConfiguration: {
+        // Custom configuration defaults
+        myCustomOption: 'myDefaultValue',
+
+        // Override global configuration if needed
+        ref: 'overriddenRef',
+      },
+    });
+    ```
+
+    **Key fields**:
+    - `name` - Unique identifier for the generator
+    - `version` - Semantic version
+    - `description` - Human-readable description
+    - `dependsOn` - Name of the generator this depends on (or `undefined` for raw files)
+    - `defaultConfiguration` - Default configuration values
+  </Step>
+
+  <Step title="Implement Generator Logic">
+    Create `generate.mjs` with the main generation function:
+
+    ```javascript
+    // src/generators/my-format/generate.mjs
+    import { writeFile } from 'node:fs/promises';
+    import { join } from 'node:path';
+
+    import getConfig from '../../utils/configuration/index.mjs';
+
+    /**
+     * Main generation function
+     *
+     * @type {import('./types').Generator['generate']}
+     */
+    export async function generate(input, worker) {
+      const config = getConfig('my-format');
+
+      // Transform input to your format
+      const result = transformToMyFormat(input, config.version);
+
+      // Write to file if output directory specified
+      if (config.output) {
+        await writeFile(
+          join(config.output, 'documentation.myformat'),
+          result,
+          'utf-8'
+        );
+      }
+
+      return result;
+    }
+
+    /**
+     * Transform metadata entries to MyFormat
+     * @param {Array<ApiDocMetadataEntry>} entries
+     * @param {import('semver').SemVer} version
+     * @returns {string}
+     */
+    function transformToMyFormat(entries, version) {
+      // Your transformation logic here
+      return entries
+        .map(entry => `${entry.api}: ${entry.heading.data.name}`)
+        .join('\n');
+    }
+    ```
+
+    **Function signature**:
+    - `input` - Output from the dependency generator
+    - `worker` - Worker instance for parallel processing
+    - Returns: Generated output (can be async generator for streaming)
+  </Step>
+
+  <Step title="Register the Generator">
+    Add your generator to `src/generators/index.mjs`:
+
+    ```javascript
+    // For public generators (available via CLI)
+    import myFormat from './my-format/index.mjs';
+
+    export const publicGenerators = {
+      'json-simple': jsonSimple,
+      'my-format': myFormat, // Add this line
+      // ... other generators
+    };
+
+    // For internal generators (used only as dependencies)
+    const internalGenerators = {
+      ast,
+      metadata,
+      // ... internal generators
+    };
+    ```
+  </Step>
+</Steps>
+
+## Function Signatures
+
+### generate Function
+
+The `generate` function is the main entry point for your generator.
+
+**Non-streaming version**:
+```typescript
+type Generate = (
+  input: InputType,
+  worker: WorkerInstance
+) => Promise<OutputType>;
+```
+
+**Streaming version**:
+```typescript
+type Generate = (
+  input: InputType,
+  worker: WorkerInstance
+) => AsyncGenerator<OutputType>;
+```
+
+### processChunk Function
+
+For parallel processing support, implement `processChunk`:
+
+```typescript
+type ProcessChunk = (
+  fullInput: InputType,
+  itemIndices: number[],
+  deps: SerializableDependencies
+) => Promise<OutputType[]>;
+```
+
+**Parameters**:
+- `fullInput` - Complete input array
+- `itemIndices` - Indices of items to process in this chunk
+- `deps` - Serializable dependencies (config, constants, etc.)
+
+See [Parallel Processing](/generators/parallel-processing) for details.
+
+## Generator Dependencies
+
+### Declaring Dependencies
+
+Specify which generator your generator depends on:
+
+```javascript
+export default createLazyGenerator({
+  name: 'my-generator',
+  dependsOn: 'metadata', // Depends on metadata generator
+  // ...
+});
+```
+
+**Available dependencies**:
+- `undefined` - No dependency (processes raw files)
+- `'ast'` - Depends on MDAST output
+- `'metadata'` - Depends on metadata output
+- `'jsx-ast'` - Depends on JSX AST output
+
+### Dependency Chain Example
+
+```javascript
+// Step 1: Parse markdown to AST
+export default createLazyGenerator({
+  name: 'ast',
+  dependsOn: undefined,  // No dependency
+});
+
+// Step 2: Extract metadata from AST
+export default createLazyGenerator({
+  name: 'metadata',
+  dependsOn: 'ast',  // Depends on AST
+});
+
+// Step 3: Generate HTML from metadata
+export default createLazyGenerator({
+  name: 'html-generator',
+  dependsOn: 'metadata',  // Depends on metadata
+});
+```
+
+## File Output
+
+### Writing Single File
+
+```javascript
+import { writeFile } from 'node:fs/promises';
+import { join } from 'node:path';
+import getConfig from '../../utils/configuration/index.mjs';
+
+export async function generate(input, worker) {
+  const config = getConfig('my-format');
+
+  if (!config.output) {
+    return result; // Return without writing
+  }
+
+  await writeFile(
+    join(config.output, 'output.txt'),
+    content,
+    'utf-8'
+  );
+
+  return result;
+}
+```
+
+### Writing Multiple Files
+
+```javascript
+import { mkdir, writeFile } from 'node:fs/promises';
+import { join } from 'node:path';
+import getConfig from '../../utils/configuration/index.mjs';
+
+export async function generate(input, worker) {
+  const config = getConfig('my-format');
+
+  if (!config.output) {
+    return result;
+  }
+
+  // Ensure directory exists
+  await mkdir(config.output, { recursive: true });
+
+  // Write multiple files
+  for (const item of items) {
+    await writeFile(
+      join(config.output, `${item.name}.txt`),
+      item.content,
+      'utf-8'
+    );
+  }
+
+  return result;
+}
+```
+
+### Copying Assets
+
+```javascript
+import { cp } from 'node:fs/promises';
+import { join } from 'node:path';
+import getConfig from '../../utils/configuration/index.mjs';
+
+export async function generate(input, worker) {
+  const config = getConfig('my-format');
+
+  if (config.output) {
+    // Copy asset directory
+    await cp(
+      new URL('./assets', import.meta.url),
+      join(config.output, 'assets'),
+      { recursive: true }
+    );
+  }
+
+  return result;
+}
+```
+
+## Streaming Results
+
+### When to Stream
+
+Use streaming when:
+- Processing many independent items
+- Items can be processed incrementally
+- You want to reduce memory usage
+- Downstream generators can start early
+
+Don't stream when:
+- You need all data to make decisions (code splitting, global analysis)
+- Output format requires complete dataset
+- Cross-references need resolution
+
+### Streaming Implementation
+
+```javascript
+/**
+ * Streaming generator yields results incrementally
+ *
+ * @type {import('./types').Generator['generate']}
+ */
+export async function* generate(input, worker) {
+  const config = getConfig('my-format');
+
+  // Process items as they arrive
+  for await (const item of input) {
+    const processed = processItem(item, config);
+    yield processed; // Yield immediately
+  }
+}
+```
+
+### Non-Streaming Implementation
+
+```javascript
+/**
+ * Non-streaming - returns Promise instead of AsyncGenerator
+ *
+ * @type {import('./types').Generator['generate']}
+ */
+export async function generate(input, worker) {
+  // Collect all input
+  const allData = await collectAll(input);
+
+  // Process everything together
+  const result = processBatch(allData);
+
+  return result;
+}
+```
+
+## Configuration
+
+### Accessing Configuration
+
+Use `getConfig()` to access configuration:
+
+```javascript
+import getConfig from '../../utils/configuration/index.mjs';
+
+export async function generate(input, worker) {
+  const config = getConfig('my-format');
+
+  // Access global config
+  console.log(config.version);
+  console.log(config.ref);
+  console.log(config.output);
+
+  // Access custom config
+  console.log(config.myCustomOption);
+}
+```
+
+### Configuration Hierarchy
+
+Configuration is resolved in this order:
+1. CLI arguments
+2. Configuration file
+3. Generator `defaultConfiguration`
+4. Global defaults
+
+## Common Patterns
+
+<AccordionGroup>
+  <Accordion title="Processing metadata entries">
+    ```javascript
+    export async function generate(input, worker) {
+      const entries = [];
+      
+      // Collect all metadata entries
+      for await (const entry of input) {
+        entries.push(entry);
+      }
+      
+      // Process entries
+      const processed = entries.map(entry => ({
+        name: entry.heading.data.name,
+        type: entry.type,
+        stability: entry.stability,
+      }));
+      
+      return processed;
+    }
+    ```
+  </Accordion>
+
+  <Accordion title="Filtering by API type">
+    ```javascript
+    export async function generate(input, worker) {
+      const methods = [];
+      
+      for await (const entry of input) {
+        if (entry.type === 'method') {
+          methods.push(entry);
+        }
+      }
+      
+      return methods;
+    }
+    ```
+  </Accordion>
+
+  <Accordion title="Grouping by module">
+    ```javascript
+    export async function generate(input, worker) {
+      const byModule = new Map();
+      
+      for await (const entry of input) {
+        const module = entry.api;
+        if (!byModule.has(module)) {
+          byModule.set(module, []);
+        }
+        byModule.get(module).push(entry);
+      }
+      
+      return Object.fromEntries(byModule);
+    }
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Parallel Processing" icon="bolt" href="/generators/parallel-processing">
+    Optimize with worker threads
+  </Card>
+  <Card title="Built-in Generators" icon="list" href="/generators/built-in">
+    Study existing generators
+  </Card>
+</CardGroup>

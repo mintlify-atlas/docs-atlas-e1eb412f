@@ -1,0 +1,413 @@
+---
+title: 'Logger API'
+description: 'Logging system with multiple transports, log levels, and child logger support'
+---
+
+## Overview
+
+The logger provides a flexible logging system with configurable transports (console, GitHub Actions), hierarchical child loggers, and multiple log levels.
+
+## Logger
+
+Creates a new logger instance with the specified transport.
+
+```javascript
+import { Logger } from './logger/index.mjs';
+
+const logger = Logger('console');
+const ghLogger = Logger('github');
+```
+
+### Parameters
+
+<ParamField path="transportName" type="string" default="console">
+  Name of the transport to use. Available options:
+  - `'console'` - Standard console output with colors
+  - `'github'` - GitHub Actions workflow commands
+</ParamField>
+
+### Returns
+
+<ResponseField name="logger" type="LoggerInstance">
+  Logger instance with logging methods
+</ResponseField>
+
+### Throws
+
+Throws an error if the specified transport is not found.
+
+## createLogger
+
+Low-level function to create a logger with a custom transport function.
+
+```javascript
+import { createLogger } from './logger/logger.mjs';
+import { LogLevel } from './logger/constants.mjs';
+
+const logger = createLogger(customTransport, LogLevel.info, 'myModule');
+```
+
+### Parameters
+
+<ParamField path="transport" type="Transport" required>
+  Function to handle log output. Receives a context object with:
+  - `level` (number) - Log level
+  - `message` (string) - Log message
+  - `timestamp` (number) - Unix timestamp
+  - `metadata` (object) - Additional metadata
+  - `module` (string) - Optional module name
+</ParamField>
+
+<ParamField path="loggerLevel" type="number" default="LogLevel.info">
+  Minimum log level to output
+</ParamField>
+
+<ParamField path="module" type="string">
+  Optional module name for the logger
+</ParamField>
+
+### Returns
+
+<ResponseField name="logger" type="LoggerInstance">
+  Logger instance with the following methods:
+  
+  <Expandable title="methods">
+    <ResponseField name="info" type="(message, metadata?) => void">
+      Log info message
+    </ResponseField>
+    
+    <ResponseField name="warn" type="(message, metadata?) => void">
+      Log warning message
+    </ResponseField>
+    
+    <ResponseField name="error" type="(message, metadata?) => void">
+      Log error message or Error object
+    </ResponseField>
+    
+    <ResponseField name="fatal" type="(message, metadata?) => void">
+      Log fatal error message
+    </ResponseField>
+    
+    <ResponseField name="debug" type="(message, metadata?) => void">
+      Log debug message
+    </ResponseField>
+    
+    <ResponseField name="child" type="(module: string) => LoggerInstance">
+      Create child logger for specific module
+    </ResponseField>
+    
+    <ResponseField name="setLogLevel" type="(level: number | string) => void">
+      Set log level for this logger and all children
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+## Logging Methods
+
+All logging methods accept a message and optional metadata object.
+
+### info
+
+Logs an informational message.
+
+```javascript
+logger.info('Processing file', { file: 'index.md' });
+```
+
+**Source:** `logger/logger.mjs:84`
+
+### warn
+
+Logs a warning message.
+
+```javascript
+logger.warn('Deprecated API usage detected');
+```
+
+**Source:** `logger/logger.mjs:94`
+
+### error
+
+Logs an error message or Error object.
+
+```javascript
+logger.error('Failed to parse file', { file: 'broken.md' });
+logger.error(new Error('Parse error'));
+```
+
+**Source:** `logger/logger.mjs:104`
+
+### fatal
+
+Logs a fatal error message.
+
+```javascript
+logger.fatal('Critical system failure');
+```
+
+**Source:** `logger/logger.mjs:114`
+
+### debug
+
+Logs a debug message (only visible when log level is debug).
+
+```javascript
+logger.debug('Starting generator', { name: 'metadata' });
+```
+
+**Source:** `logger/logger.mjs:124`
+
+## Child Loggers
+
+### child
+
+Creates a child logger for a specific module. Child loggers:
+- Share the parent's log level
+- Inherit log level changes from parent
+- Display module name in output
+
+```javascript
+import logger from './logger/index.mjs';
+
+const generatorLogger = logger.child('generators');
+const metadataLogger = generatorLogger.child('metadata');
+
+metadataLogger.info('Processing metadata');
+// Output: [generators:metadata] Processing metadata
+```
+
+**Source:** `logger/logger.mjs:134`
+
+### Parameters
+
+<ParamField path="childModule" type="string" required>
+  Module name for the child logger
+</ParamField>
+
+### Returns
+
+<ResponseField name="childLogger" type="LoggerInstance">
+  New child logger instance
+</ResponseField>
+
+## Log Level Management
+
+### setLogLevel
+
+Sets the log level for the logger and all its children. Changes propagate down the hierarchy.
+
+```javascript
+import { LogLevel } from './logger/constants.mjs';
+
+logger.setLogLevel(LogLevel.debug);
+// or
+logger.setLogLevel('debug');
+```
+
+**Source:** `logger/logger.mjs:147`
+
+### Parameters
+
+<ParamField path="level" type="number | string" required>
+  Log level as number or string name ('debug', 'info', 'warn', 'error', 'fatal')
+</ParamField>
+
+## Log Levels
+
+Log levels are defined in `logger/constants.mjs`:
+
+```javascript
+import { LogLevel } from './logger/constants.mjs';
+
+LogLevel.debug  // 10
+LogLevel.info   // 20
+LogLevel.warn   // 30
+LogLevel.error  // 40
+LogLevel.fatal  // 50
+```
+
+Messages are only logged if their level is greater than or equal to the current logger level.
+
+## Message Types
+
+The logger accepts multiple message types:
+
+```typescript
+type LogMessage = string | Error | string[];
+```
+
+### String Message
+
+```javascript
+logger.info('Processing complete');
+```
+
+### Error Object
+
+```javascript
+try {
+  // ...
+} catch (err) {
+  logger.error(err); // Extracts message and stack
+}
+```
+
+### Array of Messages
+
+```javascript
+logger.info([
+  'File 1 processed',
+  'File 2 processed',
+  'File 3 processed',
+]);
+```
+
+## Metadata
+
+All logging methods accept an optional metadata object:
+
+```typescript
+interface Metadata {
+  file?: {
+    path: string;
+    position?: {
+      start: { line: number };
+      end: { line: number };
+    };
+  };
+  stack?: string;
+  [key: string]: any;
+}
+```
+
+### Example with Metadata
+
+```javascript
+logger.info('Parsing file', {
+  file: {
+    path: 'doc/api/fs.md',
+    position: { start: { line: 10 }, end: { line: 50 } },
+  },
+  entries: 42,
+});
+```
+
+## Transports
+
+### Console Transport
+
+Default transport with colored output for terminal.
+
+```javascript
+import { Logger } from './logger/index.mjs';
+
+const logger = Logger('console'); // or Logger() for default
+```
+
+**Features:**
+- Color-coded log levels
+- Formatted timestamps
+- Module name display
+- Stack trace formatting
+
+### GitHub Transport
+
+For GitHub Actions workflow commands.
+
+```javascript
+import { Logger } from './logger/index.mjs';
+
+const logger = Logger('github');
+```
+
+**Features:**
+- GitHub Actions annotations
+- File/line number linking
+- Workflow command formatting
+
+## Examples
+
+### Basic Usage
+
+```javascript
+import logger from './logger/index.mjs';
+
+logger.info('Application started');
+logger.warn('Configuration file not found, using defaults');
+logger.error('Failed to connect to database');
+```
+
+### Module-Specific Logging
+
+```javascript
+import logger from './logger/index.mjs';
+
+const generatorLogger = logger.child('generators');
+generatorLogger.debug('Scheduling "metadata"', {
+  dependsOn: 'ast',
+  streaming: true,
+});
+```
+
+**Source:** `generators.mjs:64`
+
+### Error Logging with Context
+
+```javascript
+try {
+  await parseFile(filePath);
+} catch (err) {
+  logger.error(err, {
+    file: { path: filePath },
+    operation: 'parse',
+  });
+}
+```
+
+### Dynamic Log Level
+
+```javascript
+import { LogLevel } from './logger/constants.mjs';
+
+// Enable debug logging in development
+if (process.env.NODE_ENV === 'development') {
+  logger.setLogLevel(LogLevel.debug);
+}
+```
+
+### Custom Transport
+
+```javascript
+import { createLogger } from './logger/logger.mjs';
+
+const customTransport = ({ level, message, timestamp, module }) => {
+  // Send to external logging service
+  externalLogger.log({
+    severity: level,
+    message,
+    timestamp,
+    module,
+  });
+};
+
+const logger = createLogger(customTransport);
+```
+
+## Default Logger Instance
+
+The default export is a pre-configured console logger:
+
+```javascript
+import logger from './logger/index.mjs';
+
+// Equivalent to:
+// import { Logger } from './logger/index.mjs';
+// const logger = Logger('console');
+```
+
+**Source:** `logger/index.mjs:27`
+
+## Related APIs
+
+- [Generator API](/api/generators) - Uses logger for execution tracking
+- [Configuration API](/api/configuration) - No direct logging, but used with generators

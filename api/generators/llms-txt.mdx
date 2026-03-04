@@ -1,0 +1,109 @@
+---
+title: 'LLMs.txt Generator'
+description: 'Generates an llms.txt file to provide information to LLMs at inference time'
+---
+
+## Overview
+
+The LLMs.txt generator creates a text file that provides structured information about the API documentation to Large Language Models (LLMs) at inference time. This follows the [llms.txt](https://llmstxt.org/) specification.
+
+<Info>
+  The llms.txt format helps LLMs understand the structure and content of your documentation, improving their ability to answer questions accurately.
+</Info>
+
+## Metadata
+
+<ParamField path="name" type="string" default="llms-txt">
+  Generator identifier
+</ParamField>
+
+<ParamField path="version" type="string" default="1.0.0">
+  Generator version
+</ParamField>
+
+<ParamField path="dependsOn" type="string" default="metadata">
+  Requires metadata generator output as input
+</ParamField>
+
+## Configuration
+
+<ParamField path="templatePath" type="string" default="./template.txt">
+  Path to the llms.txt template file
+</ParamField>
+
+<ParamField path="output" type="string">
+  Output directory path for the generated llms.txt file
+</ParamField>
+
+<ParamField path="baseURL" type="string">
+  Base URL for generating absolute links to API documentation pages
+</ParamField>
+
+## Output Format
+
+The generator produces:
+- **Single file**: `llms.txt`
+- **Format**: Plain text with template header + API links list
+- **Content**: Links to all top-level API documentation pages
+
+## Usage
+
+```bash
+doc-kit -t llms-txt
+```
+
+With custom base URL:
+```bash
+doc-kit -t llms-txt --config.llms-txt.baseURL=https://nodejs.org/
+```
+
+## Dependency Chain
+
+```
+ast → metadata → llms-txt
+```
+
+The llms.txt generator depends on:
+1. **ast** - Parses Markdown to AST
+2. **metadata** - Extracts API metadata
+3. **llms-txt** - Creates LLM-friendly documentation index
+
+## Implementation Details
+
+The generator:
+- Reads the template from `templatePath`
+- Filters entries to depth-1 headings (top-level modules)
+- Builds API documentation links using `buildApiDocLink`
+- Formats as a bulleted list
+- Appends to template content
+- Writes to `llms.txt`
+
+### Link Format
+
+Each API link is formatted as:
+```
+- [Module Name](base-url/module-name.html)
+```
+
+Example output:
+```txt
+# Node.js API Documentation
+
+This file provides an index of Node.js API documentation for LLMs.
+
+## API Modules
+
+- [File System](https://nodejs.org/api/fs.html)
+- [HTTP](https://nodejs.org/api/http.html)
+- [Path](https://nodejs.org/api/path.html)
+```
+
+### Template Structure
+
+The template should include:
+- Project description
+- Documentation overview
+- Usage instructions for the API
+- A section where API links will be appended
+
+Source: `src/generators/llms-txt/`

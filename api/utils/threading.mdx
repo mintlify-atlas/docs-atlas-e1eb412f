@@ -1,0 +1,253 @@
+---
+title: Threading Utilities
+description: Worker pool and parallel processing utilities for multi-threaded generation
+---
+
+The threading module provides utilities for distributing documentation generation work across multiple worker threads using [Piscina](https://github.com/piscinajs/piscina).
+
+## createWorkerPool
+
+Creates a Piscina worker pool for parallel processing.
+
+```javascript
+import createWorkerPool from 'doc-kit/threading';
+
+const pool = createWorkerPool(4); // 4 worker threads
+
+// Use pool with createParallelWorker
+const worker = createParallelWorker('metadata', pool, configuration);
+
+// Clean up when done
+await pool.destroy();
+```
+
+<ParamField path="threads" type="number" required>
+  Maximum number of worker threads to create
+</ParamField>
+
+<ResponseField name="return" type="Piscina">
+  Configured Piscina instance
+</ResponseField>
+
+### Configuration
+
+The worker pool is configured with:
+
+- **filename**: `threading/chunk-worker.mjs` - The worker script that processes chunks
+- **minThreads**: Set to `threads` parameter - Pool maintains this many threads
+- **maxThreads**: Set to `threads` parameter - Pool won't exceed this limit  
+- **idleTimeout**: `Infinity` - Workers stay alive for the entire generation lifecycle
+
+### Worker Script Location
+
+The worker script is resolved at import time using `import.meta.resolve('./chunk-worker.mjs')`, ensuring the correct path regardless of where doc-kit is installed.
+
+## createParallelWorker
+
+Creates a parallel worker that distributes work across a Piscina thread pool.
+
+```javascript
+import createWorkerPool from 'doc-kit/threading';
+import createParallelWorker from 'doc-kit/threading/parallel';
+
+const pool = createWorkerPool(4);
+const worker = createParallelWorker('metadata', pool, {
+  threads: 4,
+  chunkSize: 25,
+  metadata: { /* generator config */ }
+});
+
+// Stream results as chunks complete
+for await (const chunk of worker.stream(items, fullInput, extra)) {
+  console.log('Processed chunk:', chunk);
+}
+```
+
+<ParamField path="generatorName" type="string" required>
+  Name of the generator (e.g., `'metadata'`, `'ast-js'`, `'headings'`)
+</ParamField>
+
+<ParamField path="pool" type="Piscina" required>
+  Piscina worker pool instance from `createWorkerPool`
+</ParamField>
+
+<ParamField path="configuration" type="Configuration" required>
+  Configuration object containing:
+  - `threads` - Number of threads (used for optimization decisions)
+  - `chunkSize` - Maximum items per chunk
+  - `[generatorName]` - Generator-specific configuration
+</ParamField>
+
+<ResponseField name="return" type="ParallelWorker">
+  Worker object with `stream` method for parallel processing
+</ResponseField>
+
+### stream Method
+
+Processes items in parallel, yielding results as chunks complete.
+
+```javascript
+const worker = createParallelWorker('metadata', pool, config);
+
+for await (const chunk of worker.stream(items, fullInput, extra)) {
+  // chunk is an array of results
+  // Results arrive in completion order, not input order
+}
+```
+
+<ParamField path="items" type="T[]" required>
+  Items to process (subset of fullInput)
+</ParamField>
+
+<ParamField path="fullInput" type="T[]" required>
+  Full input array for context (generators may need to reference other items)
+</ParamField>
+
+<ParamField path="extra" type="object" required>
+  Extra options passed to the generator's `processChunk` method
+</ParamField>
+
+<ResponseField name="yields" type="R[]">
+  Yields chunk results as they complete (not in input order)
+</ResponseField>
+
+## How Parallel Processing Works
+
+### 1. Chunk Creation
+
+Items are split into chunks based on `chunkSize` (`parallel.mjs:15-25`):
+
+```javascript
+const createChunks = (count, size) => {
+  const chunks = [];
+  for (let i = 0; i < count; i += size) {
+    chunks.push(
+      Array.from({ length: Math.min(size, count - i) }, (_, j) => i + j)
+    );
+  }
+  return chunks;
+};
+```
+
+For 100 items with `chunkSize: 25`, this creates 4 chunks: `[0-24]`, `[25-49]`, `[50-74]`, `[75-99]`.
+
+### 2. Task Distribution
+
+Each chunk becomes a task sent to the worker pool (`parallel.mjs:101-124`):
+
+```javascript
+const pending = new Set(
+  chunks.map(indices => {
+    // Skip worker overhead for small workloads
+    if (threads <= 1 || items.length <= 2) {
+      return generator.processChunk(fullInput, indices, extra)
+        .then(result => ({ promise, result }));
+    }
+
+    // Distribute to worker pool
+    return pool.run({
+      generatorName,
+      input: indices.map(i => fullInput[i]),
+      itemIndices: indices.map((_, i) => i),
+      extra,
+      configuration: {
+        [generatorName]: configuration[generatorName]
+      }
+    }).then(result => ({ promise, result }));
+  })
+);
+```
+
+### 3. Result Collection
+
+Results are yielded as they complete using `Promise.race` (`parallel.mjs:126-141`):
+
+```javascript
+let completed = 0;
+while (pending.size > 0) {
+  const { promise, result } = await Promise.race(pending);
+  pending.delete(promise);
+  completed++;
+  yield result; // Yield immediately when chunk completes
+}
+```
+
+This means results arrive in **completion order**, not input order. Fast chunks finish first.
+
+### 4. Optimization for Small Workloads
+
+The worker avoids thread overhead when:
+- `threads <= 1` (single-threaded mode)
+- `items.length <= 2` (too few items to benefit from parallelism)
+
+In these cases, processing happens in the main thread using the generator's `processChunk` method directly.
+
+## Usage in Generator Pipeline
+
+From the main generator orchestration (`generators.mjs:70-108`):
+
+```javascript
+const createGenerator = () => {
+  let pool;
+
+  const runGenerators = async (configuration) => {
+    const { target: generators, threads } = configuration;
+
+    // Create worker pool once for all generators
+    pool = createWorkerPool(threads);
+
+    // Each streaming generator gets a parallel worker
+    const scheduleGenerator = async (generatorName) => {
+      const { generate, hasParallelProcessor } = allGenerators[generatorName];
+
+      const worker = hasParallelProcessor
+        ? createParallelWorker(generatorName, pool, configuration)
+        : null;
+
+      return await generate(dependencyInput, await worker);
+    };
+
+    // ... schedule and run all generators
+
+    // Clean up pool after all work completes
+    await pool.destroy();
+  };
+};
+```
+
+## Performance Considerations
+
+### Thread Count
+
+More threads ≠ always faster. Optimal thread count depends on:
+- **CPU cores**: Match or slightly exceed physical core count
+- **Chunk size**: Larger chunks reduce overhead but limit parallelism
+- **Generator complexity**: CPU-intensive generators benefit more from parallelism
+
+### Serialization Overhead
+
+Each task sent to a worker is serialized (structured clone). To minimize overhead:
+- Only the relevant chunk items are sent (not the full input)
+- Only the generator's specific config is included
+- Indices are remapped to 0-based for the chunk
+
+From `createTask` (`parallel.mjs:37-56`):
+
+```javascript
+const createTask = (fullInput, indices, extra, configuration, generatorName) => ({
+  generatorName,
+  input: indices.map(i => fullInput[i]),        // Only chunk items
+  itemIndices: indices.map((_, i) => i),        // Remapped indices
+  extra,
+  configuration: {
+    [generatorName]: configuration[generatorName] // Only this generator's config
+  }
+});
+```
+
+### Chunk Size Selection
+
+Smaller chunks = more parallelism but more overhead  
+Larger chunks = less overhead but less parallelism
+
+Default `chunkSize: 25` balances these tradeoffs for typical documentation workloads.

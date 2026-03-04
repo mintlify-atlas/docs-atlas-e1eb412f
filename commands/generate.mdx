@@ -1,0 +1,226 @@
+---
+title: generate
+description: Generate API documentation from Node.js markdown files
+---
+
+The `generate` command is the primary command for generating API documentation. It processes markdown files from the Node.js repository and outputs documentation in various formats.
+
+## Usage
+
+```bash
+doc-kit generate [options]
+```
+
+## Options
+
+<ParamField path="--config-file" type="string">
+  Path to a configuration file. When provided, the configuration file will be loaded and merged with CLI options and defaults.
+</ParamField>
+
+<ParamField path="-i, --input" type="string[]">
+  Input file patterns using glob syntax. Specify one or more glob patterns to match the markdown files you want to process.
+  
+  **Example:** `-i "path/to/node/doc/api/*.md"`
+</ParamField>
+
+<ParamField path="-t, --target" type="string[]">
+  Target generator(s) to use for output. You can specify multiple generators to produce different output formats simultaneously.
+  
+  **Available generators:**
+  - `json-simple` - Simple JSON output
+  - `legacy-html` - Legacy HTML format (1:1 match with Node.js legacy tooling)
+  - `legacy-html-all` - Legacy HTML all-in-one format
+  - `man-page` - Man page format
+  - `legacy-json` - Legacy JSON format
+  - `legacy-json-all` - Legacy JSON all-in-one format
+  - `addon-verify` - Addon verification
+  - `api-links` - API links generator
+  - `orama-db` - Orama database for search functionality
+  - `llms-txt` - LLMs.txt format
+  - `sitemap` - Sitemap generator
+  - `web` - Redesigned web pages
+</ParamField>
+
+<ParamField path="--ignore" type="string[]">
+  File patterns to ignore during processing. Uses glob syntax to exclude files.
+  
+  **Example:** `--ignore "**/internal/**" "**/*.test.md"`
+</ParamField>
+
+<ParamField path="-o, --output" type="string">
+  The output directory where generated documentation will be written.
+  
+  **Example:** `-o out` or `-o dist/docs`
+</ParamField>
+
+<ParamField path="-p, --threads" type="number">
+  Number of threads to use for parallel processing. Must be at least 1.
+  
+  **Default:** Number of CPU cores available (automatically detected)
+</ParamField>
+
+<ParamField path="--chunk-size" type="number">
+  Number of items to process per worker thread. Must be at least 1.
+  
+  **Default:** `10`
+</ParamField>
+
+<ParamField path="-v, --version" type="string">
+  Target Node.js version in semver format. This is used for version-specific documentation generation.
+  
+  **Default:** Current Node.js version (e.g., `v22.14.0`)
+</ParamField>
+
+<ParamField path="-c, --changelog" type="string">
+  Changelog URL or local file path. Used to incorporate changelog information into the generated documentation.
+  
+  **Default:** `https://raw.githubusercontent.com/nodejs/node/HEAD/CHANGELOG.md`
+</ParamField>
+
+<ParamField path="--git-ref" type="string">
+  Git ref URL for linking to source code. This creates links to the specific commit or branch in the repository.
+  
+  **Default:** `https://github.com/nodejs/node/tree/HEAD`
+</ParamField>
+
+<ParamField path="--index" type="string">
+  URL or path to the index.md file. This file typically contains the main documentation index.
+  
+  **Example:** `--index path/to/node/doc/api/index.md`
+</ParamField>
+
+<ParamField path="--minify" type="boolean">
+  Enable minification of output files.
+  
+  **Default:** `true`
+</ParamField>
+
+<ParamField path="--type-map" type="string">
+  URL or path to a type map file for type reference mapping.
+</ParamField>
+
+## Examples
+
+### Legacy HTML and JSON Output
+
+To generate a 1:1 match with the [legacy Node.js documentation tooling](https://github.com/nodejs/node/tree/main/tools/doc):
+
+<CodeGroup>
+```bash npm
+npx doc-kit generate \
+  -t legacy-html \
+  -t legacy-json \
+  -i "path/to/node/doc/api/*.md" \
+  -o out \
+  --index path/to/node/doc/api/index.md
+```
+
+```bash node
+node bin/cli.mjs generate \
+  -t legacy-html \
+  -t legacy-json \
+  -i "path/to/node/doc/api/*.md" \
+  -o out \
+  --index path/to/node/doc/api/index.md
+```
+</CodeGroup>
+
+**Output:**
+```
+Generating documentation...
+✓ Processed 50 files
+✓ Generated legacy-html output
+✓ Generated legacy-json output
+✓ Output written to out/
+```
+
+### Redesigned Web Documentation
+
+To generate the redesigned documentation pages with search functionality:
+
+<CodeGroup>
+```bash npm
+npx doc-kit generate \
+  -t web \
+  -t orama-db \
+  -i "path/to/node/doc/api/*.md" \
+  -o out \
+  --index path/to/node/doc/api/index.md
+```
+
+```bash node
+node bin/cli.mjs generate \
+  -t web \
+  -t orama-db \
+  -i "path/to/node/doc/api/*.md" \
+  -o out \
+  --index path/to/node/doc/api/index.md
+```
+</CodeGroup>
+
+<Note>
+To use the search functionality, you must serve the output directory:
+```bash
+npx serve out
+```
+</Note>
+
+### Multiple Generators
+
+Generate multiple output formats simultaneously:
+
+```bash
+npx doc-kit generate \
+  -t legacy-html \
+  -t legacy-json \
+  -t man-page \
+  -t web \
+  -i "path/to/node/doc/api/*.md" \
+  -o out
+```
+
+### Custom Configuration
+
+Specify custom settings for version, changelog, and threading:
+
+```bash
+npx doc-kit generate \
+  -t web \
+  -i "path/to/node/doc/api/*.md" \
+  -o dist/docs \
+  -v v20.0.0 \
+  -p 8 \
+  --chunk-size 20 \
+  --git-ref https://github.com/nodejs/node/tree/v20.0.0
+```
+
+### Using a Configuration File
+
+Use a configuration file to manage complex settings:
+
+```bash
+npx doc-kit generate --config-file ./doc-kit.config.mjs
+```
+
+## Performance Tips
+
+<AccordionGroup>
+  <Accordion title="Optimize Thread Count">
+    The `--threads` option controls parallel processing. By default, it uses all available CPU cores. For optimal performance:
+    - Use fewer threads on machines with limited memory
+    - Increase `--chunk-size` when processing many small files
+    - Decrease `--chunk-size` when processing large files
+  </Accordion>
+  
+  <Accordion title="Multiple Generators">
+    When using multiple generators, they run in parallel. The total processing time is roughly equivalent to the slowest generator.
+  </Accordion>
+  
+  <Accordion title="Minification">
+    Minification is enabled by default. Disable it with `--minify false` during development to improve readability of output files.
+  </Accordion>
+</AccordionGroup>
+
+## Related Commands
+
+- [interactive](/commands/interactive) - Launch the guided CLI wizard for an interactive setup experience

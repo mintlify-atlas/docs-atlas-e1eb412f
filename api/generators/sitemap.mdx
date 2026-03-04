@@ -1,0 +1,116 @@
+---
+title: 'Sitemap Generator'
+description: 'Generates a sitemap.xml file for search engine optimization'
+---
+
+## Overview
+
+The Sitemap generator creates an XML sitemap for search engine optimization (SEO). It includes all top-level API documentation pages with metadata for search engine crawlers.
+
+## Metadata
+
+<ParamField path="name" type="string" default="sitemap">
+  Generator identifier
+</ParamField>
+
+<ParamField path="version" type="string" default="1.0.0">
+  Generator version
+</ParamField>
+
+<ParamField path="dependsOn" type="string" default="metadata">
+  Requires metadata generator output as input
+</ParamField>
+
+## Configuration
+
+<ParamField path="baseURL" type="string" required>
+  Base URL for the documentation site (e.g., "https://nodejs.org/")
+</ParamField>
+
+<ParamField path="output" type="string">
+  Output directory path for the generated sitemap.xml file
+</ParamField>
+
+## Output Format
+
+The generator produces:
+- **Single file**: `sitemap.xml`
+- **Format**: XML sitemap following the [sitemaps.org protocol](https://www.sitemaps.org/protocol.html)
+- **Entries**: One URL entry per top-level API page plus main index
+
+## Usage
+
+```bash
+doc-kit -t sitemap --config.sitemap.baseURL=https://nodejs.org/
+```
+
+## Dependency Chain
+
+```
+ast → metadata → sitemap
+```
+
+The sitemap generator depends on:
+1. **ast** - Parses Markdown to AST
+2. **metadata** - Extracts API metadata
+3. **sitemap** - Creates SEO sitemap
+
+## Implementation Details
+
+The generator:
+- Reads the sitemap template (`template.xml`)
+- Reads the entry template (`entry-template.xml`)
+- Filters entries to depth-1 headings (top-level modules)
+- Creates sitemap entries for each API page
+- Adds a main index page entry
+- Fills templates with generated data
+- Writes `sitemap.xml`
+
+### Sitemap Entry Format
+
+Each entry includes:
+- **loc**: Full URL to the page
+- **lastmod**: Last modification date (current date)
+- **changefreq**: Update frequency ("weekly" for API pages)
+- **priority**: Relative priority ("0.8" for API pages, "1.0" for main page)
+
+### Entry Creation
+
+The `createPageSitemapEntry` function:
+- Constructs full URLs from baseURL and API slug
+- Sets modification date to current date in ISO format
+- Assigns appropriate change frequency
+- Sets priority based on page importance
+
+### Template Structure
+
+**template.xml**:
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  __URLSET__
+</urlset>
+```
+
+**entry-template.xml**:
+```xml
+<url>
+  <loc>__LOC__</loc>
+  <lastmod>__LASTMOD__</lastmod>
+  <changefreq>__CHANGEFREQ__</changefreq>
+  <priority>__PRIORITY__</priority>
+</url>
+```
+
+### Main Page Entry
+
+A special entry is added for the main API index page:
+- URL: `{baseURL}/latest/api/`
+- Change frequency: "daily"
+- Priority: "1.0" (highest)
+
+<Warning>
+  The `baseURL` configuration is required. The generator will fail if not provided.
+</Warning>
+
+Source: `src/generators/sitemap/`

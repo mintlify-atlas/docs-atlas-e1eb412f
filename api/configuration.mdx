@@ -1,0 +1,329 @@
+---
+title: 'Configuration Management'
+description: 'API for loading, merging, and managing doc-kit configuration'
+---
+
+## Overview
+
+The configuration management system handles loading configuration from files, merging with CLI options and defaults, and transforming values for runtime use.
+
+## getDefaultConfig
+
+Returns the default configuration with sensible defaults for all generators.
+
+```javascript
+import { getDefaultConfig } from './utils/configuration/index.mjs';
+
+const defaults = getDefaultConfig();
+```
+
+### Returns
+
+<ResponseField name="config" type="Configuration">
+  Default configuration object containing:
+  
+  <Expandable title="properties">
+    <ResponseField name="global" type="GlobalConfiguration">
+      Global configuration with defaults:
+      - `version`: Current Node.js version
+      - `minify`: true
+      - `repository`: 'nodejs/node'
+      - `ref`: 'HEAD'
+      - `baseURL`: 'https://nodejs.org/docs'
+    </ResponseField>
+    
+    <ResponseField name="threads" type="number">
+      Number of CPU cores available
+    </ResponseField>
+    
+    <ResponseField name="chunkSize" type="number">
+      Default: 10
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+## loadConfigFile
+
+Loads a configuration file from a URL or file path.
+
+```javascript
+import { loadConfigFile } from './utils/configuration/index.mjs';
+
+const config = await loadConfigFile('./doc-kit.config.mjs');
+```
+
+### Parameters
+
+<ParamField path="filePath" type="string">
+  URL or file path to the configuration file. Returns empty object if not provided.
+</ParamField>
+
+### Returns
+
+<ResponseField name="config" type="Partial<Configuration>">
+  The imported configuration object, or an empty object if no path provided
+</ResponseField>
+
+## createConfigFromCLIOptions
+
+Converts CLI options into a configuration object.
+
+```javascript
+import { createConfigFromCLIOptions } from './utils/configuration/index.mjs';
+
+const config = createConfigFromCLIOptions({
+  input: 'doc/api/*.md',
+  output: 'dist/',
+  target: ['json-simple'],
+  threads: 4,
+});
+```
+
+### Parameters
+
+<ParamField path="options" type="CLIOptions" required>
+  Command-line options object
+  
+  <Expandable title="properties">
+    <ParamField path="input" type="string | string[]">
+      Input file patterns (glob)
+    </ParamField>
+    
+    <ParamField path="output" type="string">
+      Output directory path
+    </ParamField>
+    
+    <ParamField path="target" type="string | string[]">
+      Generator(s) to run
+    </ParamField>
+    
+    <ParamField path="ignore" type="string | string[]">
+      File patterns to ignore
+    </ParamField>
+    
+    <ParamField path="threads" type="number">
+      Number of worker threads
+    </ParamField>
+    
+    <ParamField path="chunkSize" type="number">
+      Items to process per worker thread
+    </ParamField>
+    
+    <ParamField path="version" type="string">
+      Target Node.js version (semver)
+    </ParamField>
+    
+    <ParamField path="changelog" type="string">
+      Changelog URL or path
+    </ParamField>
+    
+    <ParamField path="gitRef" type="string">
+      Git reference (e.g., 'HEAD', 'v20.0.0')
+    </ParamField>
+    
+    <ParamField path="index" type="string">
+      Index file URL or path
+    </ParamField>
+    
+    <ParamField path="minify" type="boolean">
+      Whether to minify output
+    </ParamField>
+    
+    <ParamField path="typeMap" type="string">
+      Type map JSON file URL or path
+    </ParamField>
+  </Expandable>
+</ParamField>
+
+### Returns
+
+<ResponseField name="config" type="Configuration">
+  Configuration object structured for internal use
+</ResponseField>
+
+## createRunConfiguration
+
+Creates a complete run configuration by merging config file, user options, and defaults.
+
+```javascript
+import { createRunConfiguration } from './utils/configuration/index.mjs';
+
+const config = await createRunConfiguration({
+  configFile: './doc-kit.config.mjs',
+  target: ['json-simple'],
+  threads: 4,
+});
+```
+
+### Parameters
+
+<ParamField path="options" type="CLIOptions" required>
+  User-provided configuration options (same as `createConfigFromCLIOptions`)
+</ParamField>
+
+### Returns
+
+<ResponseField name="config" type="Promise<Configuration>">
+  Fully merged and transformed configuration ready for execution
+</ResponseField>
+
+### Behavior
+
+1. Loads configuration file if `configFile` option is provided
+2. Merges in order: defaults → config file → CLI options
+3. Transforms async values:
+   - Coerces `version` string to SemVer object
+   - Parses `changelog` URL to array of release entries
+   - Parses `index` URL to array of documentation sections
+4. Enforces constraints:
+   - Minimum `threads`: 1
+   - Minimum `chunkSize`: 1
+5. Propagates global config to generator-specific configs
+
+## setConfig
+
+Sets the global configuration and returns the processed configuration.
+
+```javascript
+import { setConfig } from './utils/configuration/index.mjs';
+
+const config = await setConfig({
+  input: 'doc/api/*.md',
+  output: 'dist/',
+  target: ['metadata', 'json-simple'],
+  threads: 4,
+});
+```
+
+### Parameters
+
+<ParamField path="options" type="Configuration | CLIOptions" required>
+  Configuration object or CLI options. In main thread, creates run configuration. In worker threads, uses options as-is.
+</ParamField>
+
+### Returns
+
+<ResponseField name="config" type="Promise<Configuration>">
+  The processed configuration
+</ResponseField>
+
+## getConfig
+
+Retrieves the current configuration or generator-specific configuration.
+
+```javascript
+import getConfig from './utils/configuration/index.mjs';
+
+// Get full configuration
+const config = getConfig();
+
+// Get generator-specific configuration
+const metadataConfig = getConfig('metadata');
+```
+
+### Parameters
+
+<ParamField path="generator" type="string">
+  Optional generator name. If provided, returns generator-specific configuration.
+</ParamField>
+
+### Returns
+
+<ResponseField name="config" type="Configuration | GlobalConfiguration">
+  Full configuration if no generator specified, otherwise generator-specific configuration
+</ResponseField>
+
+## Configuration Types
+
+### Configuration
+
+```typescript
+type Configuration = {
+  global: GlobalConfiguration;
+  target: Array<keyof AvailableGenerators>;
+  threads: number;
+  chunkSize: number;
+} & {
+  [generator: string]: GlobalConfiguration & GeneratorDefaultConfig;
+};
+```
+
+### GlobalConfiguration
+
+```typescript
+type GlobalConfiguration = {
+  repository: string;
+  input: string | string[];
+  ignore: string | string[];
+  output: string;
+  minify: boolean;
+  version: SemVer;
+  changelog: Array<ApiDocReleaseEntry>;
+  index: Array<{ section: string; api: string }>;
+  baseURL: string | URL;
+  ref: string;
+};
+```
+
+## Template Utilities
+
+### populate
+
+Populates a template string with configuration values.
+
+```javascript
+import { populate } from './utils/configuration/templates.mjs';
+
+const url = populate('https://github.com/{repository}/blob/{ref}/', config);
+// Result: 'https://github.com/nodejs/node/blob/HEAD/'
+```
+
+**Source:** `utils/configuration/templates.mjs:19`
+
+## Examples
+
+### Loading Configuration from File
+
+```javascript
+import { setConfig } from './utils/configuration/index.mjs';
+import createGenerator from './generators.mjs';
+
+// Load config from file
+const config = await setConfig({
+  configFile: './doc-kit.config.mjs',
+  target: ['json-simple'],
+});
+
+// Run generators
+const { runGenerators } = createGenerator();
+await runGenerators(config);
+```
+
+### Overriding Configuration
+
+```javascript
+import { createRunConfiguration } from './utils/configuration/index.mjs';
+
+// Merge file config with CLI overrides
+const config = await createRunConfiguration({
+  configFile: './doc-kit.config.mjs',
+  output: 'custom-dist/', // Override output
+  threads: 8, // Override threads
+});
+```
+
+### Generator-Specific Configuration
+
+```javascript
+import getConfig from './utils/configuration/index.mjs';
+
+// Inside a generator
+const config = getConfig('metadata');
+console.log(config.typeMap); // Generator-specific config
+console.log(config.version); // Inherited from global
+```
+
+## Related APIs
+
+- [Generator API](/api/generators) - For running generators with configuration
+- [Parser API](/api/parsers) - For parsing changelog and index files

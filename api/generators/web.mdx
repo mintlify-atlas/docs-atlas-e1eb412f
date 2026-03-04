@@ -1,0 +1,87 @@
+---
+title: 'Web Generator'
+description: 'Generates HTML/CSS/JS bundles from JSX AST entries with server-side rendering and code splitting'
+---
+
+## Overview
+
+The Web generator transforms JSX AST entries into complete web bundles with server-side rendered HTML pages, client-side JavaScript with code splitting, and bundled CSS styles.
+
+<Note>
+  This generator does NOT support streaming/chunked processing because `processJSXEntries` needs all entries together to generate code-split bundles.
+</Note>
+
+## Metadata
+
+<ParamField path="name" type="string" default="web">
+  Generator identifier
+</ParamField>
+
+<ParamField path="version" type="string" default="1.0.0">
+  Generator version
+</ParamField>
+
+<ParamField path="dependsOn" type="string" default="jsx-ast">
+  Requires JSX AST generator output as input
+</ParamField>
+
+## Configuration
+
+<ParamField path="templatePath" type="string" default="./template.html">
+  Path to the HTML template file used for rendering pages
+</ParamField>
+
+<ParamField path="title" type="string" default="Node.js">
+  Page title used in generated HTML documents
+</ParamField>
+
+<ParamField path="imports" type="object">
+  Custom import mappings for components
+  
+  Default:
+  ```json
+  {
+    "#config/Logo": "@node-core/ui-components/Common/NodejsLogo"
+  }
+  ```
+</ParamField>
+
+<ParamField path="output" type="string">
+  Output directory path for generated files (HTML, CSS, JS)
+</ParamField>
+
+## Output Format
+
+The generator produces:
+- **HTML files**: Server-side rendered pages (e.g., `http.html`, `fs.html`)
+- **JavaScript chunks**: Code-split bundles for client-side hydration
+- **CSS bundle**: Single `styles.css` file containing all styles
+
+## Usage
+
+```bash
+doc-kit -t web
+```
+
+## Dependency Chain
+
+```
+ast → metadata → jsx-ast → web
+```
+
+The web generator depends on:
+1. **ast** - Parses Markdown to AST
+2. **metadata** - Extracts API metadata
+3. **jsx-ast** - Converts to JSX components
+4. **web** - Renders to HTML/CSS/JS bundles
+
+## Implementation Details
+
+The generator:
+- Reads an HTML template from `templatePath`
+- Creates AST builders for server and client programs
+- Processes JSX entries through `processJSXEntries` to convert to HTML/CSS/JS
+- Writes all output files to the configured output directory
+- Returns an array of HTML strings with associated CSS
+
+Source: `src/generators/web/`

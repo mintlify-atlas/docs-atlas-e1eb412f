@@ -1,0 +1,186 @@
+---
+title: Installation
+description: Install doc-kit using npm, yarn, pnpm, or run it directly with npx
+---
+
+# Installation
+
+doc-kit can be installed globally, added to your project, or run directly using npx. Choose the method that works best for your workflow.
+
+## Using npx (Recommended)
+
+The fastest way to use doc-kit without installation:
+
+<CodeGroup>
+```bash npm
+npx @nodejs/doc-kit --help
+```
+
+```bash npx (generate)
+npx @nodejs/doc-kit generate -i "docs/api/*.md" -o out -t legacy-html
+```
+</CodeGroup>
+
+<Tip>
+  Using npx is ideal for CI/CD pipelines or one-off documentation generation. No installation required!
+</Tip>
+
+## Package Manager Installation
+
+For regular use, install doc-kit using your preferred package manager:
+
+<Steps>
+  <Step title="Install the package">
+    Choose your package manager and install `@nodejs/doc-kit`:
+    
+    <CodeGroup>
+    ```bash npm
+    npm install -g @nodejs/doc-kit
+    ```
+    
+    ```bash yarn
+    yarn global add @nodejs/doc-kit
+    ```
+    
+    ```bash pnpm
+    pnpm add -g @nodejs/doc-kit
+    ```
+    </CodeGroup>
+  </Step>
+  
+  <Step title="Verify installation">
+    Confirm doc-kit is installed correctly:
+    
+    ```bash
+    doc-kit --help
+    ```
+    
+    You should see the CLI help output:
+    
+    ```
+    Usage: @nodejs/doc-kit [options] [command]
+    
+    CLI tool to generate the Node.js API documentation
+    
+    Options:
+      -h, --help          display help for command
+    
+    Commands:
+      generate [options]  Generate API docs
+      interactive         Launch guided CLI wizard
+      help [command]      display help for command
+    ```
+  </Step>
+  
+  <Step title="Start generating docs">
+    You're ready to generate documentation! Try the generate command:
+    
+    ```bash
+    doc-kit generate --help
+    ```
+  </Step>
+</Steps>
+
+## Project-Level Installation
+
+For project-specific usage, install doc-kit as a dev dependency:
+
+<Steps>
+  <Step title="Add to your project">
+    <CodeGroup>
+    ```bash npm
+    npm install --save-dev @nodejs/doc-kit
+    ```
+    
+    ```bash yarn
+    yarn add --dev @nodejs/doc-kit
+    ```
+    
+    ```bash pnpm
+    pnpm add -D @nodejs/doc-kit
+    ```
+    </CodeGroup>
+  </Step>
+  
+  <Step title="Add npm script (optional)">
+    Add a script to your `package.json` for convenient access:
+    
+    ```json package.json
+    {
+      "scripts": {
+        "docs:build": "doc-kit generate -i 'docs/api/*.md' -o dist/docs -t web -t orama-db",
+        "docs:legacy": "doc-kit generate -i 'docs/api/*.md' -o dist/docs -t legacy-html -t legacy-json"
+      }
+    }
+    ```
+  </Step>
+  
+  <Step title="Run via npm scripts">
+    Execute your documentation build:
+    
+    ```bash
+    npm run docs:build
+    ```
+  </Step>
+</Steps>
+
+## Development Installation
+
+If you want to contribute to doc-kit or run it from source:
+
+<Steps>
+  <Step title="Clone the repository">
+    ```bash
+    git clone https://github.com/nodejs/api-docs-tooling.git
+    cd api-docs-tooling
+    ```
+  </Step>
+  
+  <Step title="Install dependencies">
+    ```bash
+    npm install
+    ```
+  </Step>
+  
+  <Step title="Run from source">
+    Use the local CLI script:
+    
+    ```bash
+    node bin/cli.mjs --help
+    ```
+    
+    Or use the npm script:
+    
+    ```bash
+    npm run run -- --help
+    ```
+  </Step>
+  
+  <Step title="Watch mode (development)">
+    For active development, use watch mode:
+    
+    ```bash
+    npm run watch -- generate -i "docs/*.md" -o out
+    ```
+  </Step>
+</Steps>
+
+## System Requirements
+
+<Note>
+  doc-kit requires Node.js version 18 or higher. The tool uses modern ES modules and features available in recent Node.js versions.
+</Note>
+
+## Next Steps
+
+Now that doc-kit is installed:
+
+<CardGroup cols={2}>
+  <Card title="Quick Start" icon="rocket" href="/quickstart">
+    Generate your first documentation
+  </Card>
+  
+  <Card title="CLI Commands" icon="terminal" href="/commands">
+    Learn about available commands and options
+  </Card>
+</CardGroup>

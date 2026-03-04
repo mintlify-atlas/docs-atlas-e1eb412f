@@ -1,0 +1,541 @@
+---
+title: Creating Build Comparators
+description: Build comparison scripts for CI/CD regression testing and documentation validation
+---
+
+## Comparator Concepts
+
+Comparators are scripts that:
+
+1. **Compare** generated documentation between two builds (base vs. head)
+2. **Identify differences** in content, structure, or file size
+3. **Report results** in a format suitable for CI/CD systems
+4. **Help catch regressions** before merging changes
+
+### When to Use Comparators
+
+- **Verify backward compatibility** - Ensure new code produces same output
+- **Track file size changes** - Monitor bundle size growth
+- **Validate transformations** - Check that refactors don't alter output
+- **Debug generation issues** - Understand what changed between versions
+
+## Comparator Structure
+
+Comparators are standalone ESM scripts located in `scripts/comparators/`:
+
+```
+scripts/comparators/
+├── constants.mjs        # Shared constants (BASE, HEAD, TITLE paths)
+├── file-size.mjs        # Compare file sizes between builds
+├── object-assertion.mjs # Deep equality assertion for JSON objects
+└── your-comparator.mjs  # Your new comparator
+```
+
+### Naming Convention
+
+Comparators can be **reused across multiple generators**. You specify which comparator to use in the workflow file using the `compare` field.
+
+**Examples:**
+
+- `file-size.mjs` can compare output from `web`, `legacy-html`, or any generator
+- `object-assertion.mjs` can compare JSON output from `legacy-json`, `json-simple`, etc.
+- `my-comparator.mjs` would be a custom comparator for specific needs
+
+<Note>
+  The comparator name in your workflow (e.g., `compare: "file-size"`) corresponds to `scripts/comparators/file-size.mjs`.
+</Note>
+
+## Creating a Comparator
+
+### Step 1: Create the Comparator File
+
+Create a new file in `scripts/comparators/` (not `compare-builds/`):
+
+```javascript
+// scripts/comparators/my-format.mjs
+import { readdir, readFile } from 'node:fs/promises';
+import { join } from 'node:path';
+import { BASE, HEAD, TITLE } from './constants.mjs';
+
+// Fetch files from both directories
+const [baseFiles, headFiles] = await Promise.all(
+  [BASE, HEAD].map(dir => readdir(dir))
+);
+
+// Find all unique files across both builds
+const allFiles = [...new Set([...baseFiles, ...headFiles])];
+
+/**
+ * Compare a single file between base and head
+ * @param {string} file - Filename to compare
+ * @returns {Promise<Object|null>} Difference object or null if identical
+ */
+const compareFile = async file => {
+  const basePath = join(BASE, file);
+  const headPath = join(HEAD, file);
+
+  try {
+    const baseContent = await readFile(basePath, 'utf-8');
+    const headContent = await readFile(headPath, 'utf-8');
+
+    if (baseContent !== headContent) {
+      return {
+        file,
+        type: 'modified',
+        baseSize: baseContent.length,
+        headSize: headContent.length,
+      };
+    }
+
+    return null; // Files are identical
+  } catch (error) {
+    // File missing in one of the builds
+    const exists = await Promise.all([
+      readFile(basePath, 'utf-8').then(() => true).catch(() => false),
+      readFile(headPath, 'utf-8').then(() => true).catch(() => false),
+    ]);
+
+    if (exists[0] && !exists[1]) {
+      return { file, type: 'removed' };
+    }
+    if (!exists[0] && exists[1]) {
+      return { file, type: 'added' };
+    }
+
+    return { file, type: 'error', error: error.message };
+  }
+};
+
+// Compare all files in parallel
+const results = await Promise.all(allFiles.map(compareFile));
+
+// Filter out null results (identical files)
+const differences = results.filter(Boolean);
+
+// Output markdown results
+if (differences.length > 0) {
+  console.log(TITLE);
+  console.log('');
+  console.log(`Found ${differences.length} difference(s):`);
+  console.log('');
+
+  // Group by type
+  const added = differences.filter(d => d.type === 'added');
+  const removed = differences.filter(d => d.type === 'removed');
+  const modified = differences.filter(d => d.type === 'modified');
+
+  if (added.length) {
+    console.log('### Added Files');
+    console.log('');
+    added.forEach(d => console.log(`- \`${d.file}\``))
+    console.log('');
+  }
+
+  if (removed.length) {
+    console.log('### Removed Files');
+    console.log('');
+    removed.forEach(d => console.log(`- \`${d.file}\``));
+    console.log('');
+  }
+
+  if (modified.length) {
+    console.log('### Modified Files');
+    console.log('');
+    console.log('| File | Base Size | Head Size | Diff |');
+    console.log('|-|-|-|-|');
+    modified.forEach(({ file, baseSize, headSize }) => {
+      const diff = headSize - baseSize;
+      const sign = diff > 0 ? '+' : '';
+      console.log(`| \`${file}\` | ${baseSize} | ${headSize} | ${sign}${diff} |`);
+    });
+    console.log('');
+  }
+}
+```
+
+### Available Constants
+
+From `scripts/comparators/constants.mjs`:
+
+```javascript
+import { BASE, HEAD, TITLE } from './constants.mjs';
+
+// BASE - Path to base build output directory
+// HEAD - Path to head build output directory
+// TITLE - Markdown title for the comparison report
+```
+
+<Warning>
+  Always use the `BASE`, `HEAD`, and `TITLE` constants from `constants.mjs`. These are set by the CI/CD environment and should never be hardcoded.
+</Warning>
+
+## Testing Locally
+
+Run your comparator locally to verify it works:
+
+```bash
+# Set up BASE and HEAD directories
+export BASE=path/to/base/output
+export HEAD=path/to/head/output
+
+# Run the comparator
+node scripts/comparators/my-format.mjs
+```
+
+### Example Test Setup
+
+```bash
+# Generate base build
+git checkout main
+npm run generate -- --target json-simple --output ./build/base
+
+# Generate head build
+git checkout feature-branch
+npm run generate -- --target json-simple --output ./build/head
+
+# Compare
+BASE=./build/base HEAD=./build/head node scripts/comparators/object-assertion.mjs
+```
+
+## Integration with CI/CD
+
+The comparator automatically runs in GitHub Actions when:
+
+1. Your generator is configured with `compare: <comparator-name>` in the workflow
+2. The workflow is triggered on a pull request
+
+### Workflow Configuration
+
+```yaml
+# .github/workflows/compare.yml
+jobs:
+  compare:
+    steps:
+      - name: Generate Base
+        run: npm run generate -- --target json-simple --output ./base
+
+      - name: Generate Head
+        run: npm run generate -- --target json-simple --output ./head
+
+      - name: Compare Builds
+        env:
+          BASE: ./base
+          HEAD: ./head
+          TITLE: "## JSON Comparison"
+        run: node scripts/comparators/object-assertion.mjs
+```
+
+The `compare` field in your generator config tells the system which comparator to run:
+
+```javascript
+// In your workflow configuration
+{
+  generator: 'json-simple',
+  compare: 'object-assertion',  // Uses scripts/comparators/object-assertion.mjs
+}
+```
+
+## Built-in Comparators
+
+### file-size.mjs
+
+Compares file sizes between builds:
+
+**Use case:** Track bundle size growth, detect bloat
+
+**Output:**
+```markdown
+## File Size Comparison
+
+Found 2 difference(s):
+
+| File | Base | Head | Diff |
+|-|-|-|-|
+| api.json | 1.2 MB | 1.5 MB | +300 KB |
+| index.html | 45 KB | 43 KB | -2 KB |
+```
+
+### object-assertion.mjs
+
+Deep equality check for JSON objects:
+
+**Use case:** Ensure refactors don't change output structure
+
+**Output:**
+```markdown
+## JSON Comparison
+
+Files are identical ✓
+```
+
+or:
+
+```markdown
+## JSON Comparison
+
+Differences found in api.json:
+- Expected: {"version": "1.0.0"}
++ Received: {"version": "1.1.0"}
+```
+
+## Advanced Comparator Patterns
+
+### Pattern 1: Content-Aware Comparison
+
+```javascript
+const compareFile = async file => {
+  const baseContent = await readFile(join(BASE, file), 'utf-8');
+  const headContent = await readFile(join(HEAD, file), 'utf-8');
+
+  if (file.endsWith('.json')) {
+    // Deep compare JSON
+    const baseObj = JSON.parse(baseContent);
+    const headObj = JSON.parse(headContent);
+    return deepEqual(baseObj, headObj) ? null : { file, type: 'json-diff' };
+  } else if (file.endsWith('.html')) {
+    // Normalize HTML before comparing
+    const baseNorm = normalizeHtml(baseContent);
+    const headNorm = normalizeHtml(headContent);
+    return baseNorm === headNorm ? null : { file, type: 'html-diff' };
+  } else {
+    // Byte-for-byte comparison
+    return baseContent === headContent ? null : { file, type: 'binary-diff' };
+  }
+};
+```
+
+### Pattern 2: Threshold-Based Comparison
+
+```javascript
+// Only report if file size changed by more than 5%
+const compareFile = async file => {
+  const baseSize = (await stat(join(BASE, file))).size;
+  const headSize = (await stat(join(HEAD, file))).size;
+
+  const percentChange = ((headSize - baseSize) / baseSize) * 100;
+
+  if (Math.abs(percentChange) > 5) {
+    return {
+      file,
+      baseSize,
+      headSize,
+      percentChange: percentChange.toFixed(2),
+    };
+  }
+
+  return null; // Change is within threshold
+};
+```
+
+### Pattern 3: Detailed Diff Output
+
+```javascript
+import { diffLines } from 'diff';
+
+const compareFile = async file => {
+  const baseContent = await readFile(join(BASE, file), 'utf-8');
+  const headContent = await readFile(join(HEAD, file), 'utf-8');
+
+  if (baseContent === headContent) {
+    return null;
+  }
+
+  // Generate line-by-line diff
+  const diff = diffLines(baseContent, headContent);
+
+  return {
+    file,
+    changes: diff.filter(part => part.added || part.removed),
+  };
+};
+
+// Output detailed diff
+if (differences.length > 0) {
+  console.log('## Content Differences\n');
+
+  for (const { file, changes } of differences) {
+    console.log(`### ${file}\n`);
+    console.log('```diff');
+    for (const part of changes) {
+      const prefix = part.added ? '+' : '-';
+      const lines = part.value.split('\n').filter(Boolean);
+      lines.forEach(line => console.log(`${prefix} ${line}`));
+    }
+    console.log('```\n');
+  }
+}
+```
+
+## Best Practices
+
+### DO: Use Parallel Processing
+
+```javascript
+// ✅ Compare all files in parallel
+const results = await Promise.all(allFiles.map(compareFile));
+```
+
+### DO: Handle Missing Files Gracefully
+
+```javascript
+try {
+  const baseContent = await readFile(basePath, 'utf-8');
+  const headContent = await readFile(headPath, 'utf-8');
+} catch (error) {
+  // Check which file is missing
+  const baseExists = await exists(basePath);
+  const headExists = await exists(headPath);
+
+  if (!baseExists) return { file, type: 'added' };
+  if (!headExists) return { file, type: 'removed' };
+
+  throw error; // Unexpected error
+}
+```
+
+### DO: Output Markdown
+
+```javascript
+// ✅ GitHub Actions will render this nicely
+console.log('## Comparison Results\n');
+console.log('| File | Status |');
+console.log('|-|-|');
+results.forEach(r => console.log(`| \`${r.file}\` | ${r.status} |`));
+```
+
+### DON'T: Fail Silently
+
+```javascript
+// ❌ Don't swallow errors
+try {
+  await compareFile(file);
+} catch (error) {
+  // Silent failure - bad!
+}
+
+// ✅ Report errors
+try {
+  await compareFile(file);
+} catch (error) {
+  console.error(`Error comparing ${file}:`, error.message);
+  process.exit(1);
+}
+```
+
+### DON'T: Hardcode Paths
+
+```javascript
+// ❌ Don't hardcode paths
+const BASE = './build/base';
+
+// ✅ Use environment variables
+import { BASE } from './constants.mjs';
+```
+
+## Complete Example: Size-Aware JSON Comparator
+
+```javascript
+// scripts/comparators/json-size.mjs
+import { readdir, readFile, stat } from 'node:fs/promises';
+import { join } from 'node:path';
+import { BASE, HEAD, TITLE } from './constants.mjs';
+
+const [baseFiles, headFiles] = await Promise.all(
+  [BASE, HEAD].map(dir => readdir(dir))
+);
+
+const allFiles = [...new Set([...baseFiles, ...headFiles])].filter(f =>
+  f.endsWith('.json')
+);
+
+const compareFile = async file => {
+  const basePath = join(BASE, file);
+  const headPath = join(HEAD, file);
+
+  try {
+    const [baseContent, headContent, baseStat, headStat] = await Promise.all([
+      readFile(basePath, 'utf-8'),
+      readFile(headPath, 'utf-8'),
+      stat(basePath),
+      stat(headPath),
+    ]);
+
+    // Parse JSON
+    const baseObj = JSON.parse(baseContent);
+    const headObj = JSON.parse(headContent);
+
+    // Deep comparison
+    const structureChanged = JSON.stringify(baseObj) !== JSON.stringify(headObj);
+
+    // Size comparison
+    const sizeChanged = baseStat.size !== headStat.size;
+    const sizeDiff = headStat.size - baseStat.size;
+    const percentChange = ((sizeDiff / baseStat.size) * 100).toFixed(2);
+
+    if (structureChanged || Math.abs(sizeDiff) > 1024) {
+      // Report if structure changed or size diff > 1KB
+      return {
+        file,
+        structureChanged,
+        baseSize: baseStat.size,
+        headSize: headStat.size,
+        sizeDiff,
+        percentChange,
+      };
+    }
+
+    return null;
+  } catch (error) {
+    return { file, type: 'error', error: error.message };
+  }
+};
+
+const results = await Promise.all(allFiles.map(compareFile));
+const differences = results.filter(Boolean);
+
+if (differences.length > 0) {
+  console.log(TITLE);
+  console.log('');
+  console.log(`Found ${differences.length} JSON file(s) with changes:\n`);
+
+  console.log('| File | Base Size | Head Size | Diff | Structure Changed |');
+  console.log('|-|-|-|-|-|');
+
+  for (const diff of differences) {
+    if (diff.type === 'error') {
+      console.log(`| \`${diff.file}\` | - | - | Error | ${diff.error} |`);
+    } else {
+      const sign = diff.sizeDiff > 0 ? '+' : '';
+      const sizeStr = `${sign}${(diff.sizeDiff / 1024).toFixed(2)} KB (${diff.percentChange}%)`;
+      const structureStr = diff.structureChanged ? '⚠️ Yes' : 'No';
+      console.log(
+        `| \`${diff.file}\` | ${(diff.baseSize / 1024).toFixed(2)} KB | ${(diff.headSize / 1024).toFixed(2)} KB | ${sizeStr} | ${structureStr} |`
+      );
+    }
+  }
+
+  console.log('');
+
+  // Fail if any structure changed
+  const hasStructureChanges = differences.some(d => d.structureChanged);
+  if (hasStructureChanges) {
+    console.log('❌ JSON structure changes detected');
+    process.exit(1);
+  }
+} else {
+  console.log(TITLE);
+  console.log('');
+  console.log('✅ All JSON files are identical');
+}
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Custom Commands" icon="terminal" href="/advanced/custom-commands">
+    Learn how to create custom CLI commands
+  </Card>
+  <Card title="Architecture" icon="sitemap" href="/advanced/architecture">
+    Understand the overall system architecture
+  </Card>
+</CardGroup>

@@ -1,0 +1,317 @@
+---
+title: Configuration File Format
+description: Complete reference for doc-kit configuration file structure and properties
+---
+
+Configuration files define how doc-kit generates documentation. They support both JavaScript (ESM) and JSON formats.
+
+## File Format Requirements
+
+Configuration files must be loadable via an `import()` call:
+
+- **JavaScript/ESM**: `.mjs` or `.js` with `"type": "module"` in package.json
+- **JSON**: `.json` files
+
+## Complete Configuration Example
+
+<Tabs>
+  <Tab title="JavaScript">
+    ```javascript
+    export default {
+      global: {
+        version: '20.0.0',
+        minify: true,
+        repository: 'nodejs/node',
+        ref: 'main',
+        baseURL: 'https://nodejs.org/docs/',
+        input: 'src/',
+        output: 'dist/',
+        ignore: ['node_modules/', 'test/'],
+        changelog:
+          'https://raw.githubusercontent.com/nodejs/node/main/CHANGELOG.md',
+        index:
+          'https://raw.githubusercontent.com/nodejs/node/main/doc/api/index.md',
+      },
+
+      threads: 4,
+      chunkSize: 10,
+
+      // Generator-specific configurations
+      json: {
+        format: 'json',
+        minify: false, // Override global setting
+      },
+
+      html: {
+        format: 'html',
+      },
+
+      metadata: {
+        typeMap: {
+          String: 'string',
+          Number: 'number',
+          Boolean: 'boolean',
+        },
+      },
+    };
+    ```
+  </Tab>
+  <Tab title="JSON">
+    ```json
+    {
+      "global": {
+        "version": "20.0.0",
+        "minify": true,
+        "repository": "nodejs/node",
+        "ref": "main",
+        "baseURL": "https://nodejs.org/docs/",
+        "input": "src/",
+        "output": "dist/",
+        "ignore": ["node_modules/", "test/"],
+        "changelog": "https://raw.githubusercontent.com/nodejs/node/main/CHANGELOG.md",
+        "index": "https://raw.githubusercontent.com/nodejs/node/main/doc/api/index.md"
+      },
+      "threads": 4,
+      "chunkSize": 10,
+      "json": {
+        "format": "json",
+        "minify": false
+      },
+      "html": {
+        "format": "html"
+      },
+      "metadata": {
+        "typeMap": {
+          "String": "string",
+          "Number": "number",
+          "Boolean": "boolean"
+        }
+      }
+    }
+    ```
+  </Tab>
+</Tabs>
+
+## Global Configuration
+
+The `global` object contains settings that apply to all generators unless overridden by generator-specific configuration.
+
+| Property     | Type               | Description                                | Default                                            |
+| ------------ | ------------------ | ------------------------------------------ | -------------------------------------------------- |
+| `version`    | `string \| SemVer` | Documentation version                      | `process.version`                                  |
+| `minify`     | `boolean`          | Whether to minify output                   | `true`                                             |
+| `repository` | `string`           | GitHub repository in `owner/repo` format   | `'nodejs/node'`                                    |
+| `ref`        | `string`           | Git reference (branch, tag, or commit SHA) | `'HEAD'`                                           |
+| `baseURL`    | `string \| URL`    | Base URL for documentation                 | `'https://nodejs.org/docs'`                        |
+| `input`      | `string[]`         | Input directory path or glob patterns      | -                                                  |
+| `output`     | `string`           | Output directory path                      | -                                                  |
+| `ignore`     | `string[]`         | Glob patterns to ignore                    | `[]`                                               |
+| `changelog`  | `string \| URL`    | Changelog URL or file path                 | Auto-generated URL based on `ref` and `repository` |
+| `index`      | `string \| URL`    | Index file URL or path                     | -                                                  |
+
+### Version
+
+Specifies the target Node.js version for documentation generation. Accepts semver strings which are automatically coerced:
+
+```javascript
+global: {
+  version: '20.0.0', // Coerced to SemVer object
+}
+```
+
+### Repository and Ref
+
+Define the GitHub repository and git reference for source code linking:
+
+```javascript
+global: {
+  repository: 'nodejs/node',
+  ref: 'main', // or 'v20.0.0', or commit SHA
+}
+```
+
+### Input and Output
+
+Control where doc-kit reads source files and writes generated documentation:
+
+```javascript
+global: {
+  input: 'src/', // Can be a glob pattern or array of patterns
+  output: 'dist/',
+  ignore: ['node_modules/', 'test/', '**/*.test.js'],
+}
+```
+
+### Changelog and Index
+
+Provide URLs or file paths to changelog and index files:
+
+```javascript
+global: {
+  changelog: 'https://raw.githubusercontent.com/nodejs/node/main/CHANGELOG.md',
+  index: 'https://raw.githubusercontent.com/nodejs/node/main/doc/api/index.md',
+}
+```
+
+If not specified, `changelog` is auto-generated based on `repository` and `ref`:
+
+```
+https://raw.githubusercontent.com/{repository}/{ref}/CHANGELOG.md
+```
+
+## Top-Level Configuration
+
+### threads
+
+Number of worker threads to use for parallel processing:
+
+```javascript
+threads: 4, // Minimum: 1, Default: number of CPU cores
+```
+
+### chunkSize
+
+Number of items to process per worker thread:
+
+```javascript
+chunkSize: 10, // Minimum: 1, Default: 10
+```
+
+### target
+
+Array of generator names to run:
+
+```javascript
+target: ['json', 'html', 'metadata'],
+```
+
+## Generator-Specific Configuration
+
+Each generator can have its own configuration that inherits from `global` and allows overrides:
+
+```javascript
+export default {
+  global: {
+    version: '20.0.0',
+    minify: true,
+  },
+
+  'legacy-json': {
+    minify: false, // Override: JSON output won't be minified
+  },
+
+  metadata: {
+    typeMap: {
+      String: 'string',
+      Number: 'number',
+      Boolean: 'boolean',
+    },
+  },
+};
+```
+
+### How Overrides Work
+
+Generator-specific configuration:
+
+1. Inherits all properties from `global`
+2. Can override any global property
+3. Can add generator-specific properties
+
+<Tabs>
+  <Tab title="JavaScript">
+    ```javascript
+    export default {
+      global: {
+        version: '20.0.0',
+        minify: true,
+        output: 'dist/',
+      },
+
+      json: {
+        minify: false, // JSON output not minified
+        // Inherits: version: '20.0.0', output: 'dist/'
+      },
+
+      html: {
+        // Inherits all global properties
+        // minify: true, version: '20.0.0', output: 'dist/'
+      },
+    };
+    ```
+  </Tab>
+  <Tab title="JSON">
+    ```json
+    {
+      "global": {
+        "version": "20.0.0",
+        "minify": true,
+        "output": "dist/"
+      },
+      "json": {
+        "minify": false
+      },
+      "html": {}
+    }
+    ```
+  </Tab>
+</Tabs>
+
+## Configuration Transformation
+
+Some configuration values are automatically transformed:
+
+- **version**: String values are coerced to SemVer objects
+- **changelog**: URLs are fetched and parsed into release entries
+- **index**: URLs are fetched and parsed into index entries
+
+## Type Map Configuration
+
+The `metadata` generator supports a `typeMap` property for mapping type names:
+
+```javascript
+metadata: {
+  typeMap: {
+    AbortController: 'globals.html#class-abortcontroller',
+    Buffer: 'buffer.html#class-buffer',
+    String: 'string',
+    Number: 'number',
+    Boolean: 'boolean',
+  },
+}
+```
+
+You can also load a type map from a file:
+
+```bash
+doc-kit generate --type-map ./typeMap.json
+```
+
+## Minimal Configuration
+
+The minimum required configuration only needs `input` and `output`:
+
+<Tabs>
+  <Tab title="JavaScript">
+    ```javascript
+    export default {
+      global: {
+        input: 'src/',
+        output: 'dist/',
+      },
+    };
+    ```
+  </Tab>
+  <Tab title="JSON">
+    ```json
+    {
+      "global": {
+        "input": "src/",
+        "output": "dist/"
+      }
+    }
+    ```
+  </Tab>
+</Tabs>
+
+All other properties will use their default values.

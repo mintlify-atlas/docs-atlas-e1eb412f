@@ -1,0 +1,102 @@
+---
+title: 'Legacy HTML Generator'
+description: 'Generates the legacy version of API docs in HTML with assets and styles'
+---
+
+## Overview
+
+The Legacy HTML generator produces the legacy version of the API documentation in HTML format, including all assets and styles as separate files. This generator provides retro-compatibility while newer generators are being implemented.
+
+## Metadata
+
+<ParamField path="name" type="string" default="legacy-html">
+  Generator identifier
+</ParamField>
+
+<ParamField path="version" type="string" default="1.0.0">
+  Generator version
+</ParamField>
+
+<ParamField path="dependsOn" type="string" default="metadata">
+  Requires metadata generator output as input
+</ParamField>
+
+<ParamField path="hasParallelProcessor" type="boolean" default="true">
+  Supports parallel processing for improved performance
+</ParamField>
+
+## Configuration
+
+<ParamField path="templatePath" type="string" default="./template.html">
+  Path to the HTML template file
+</ParamField>
+
+<ParamField path="additionalPathsToCopy" type="array">
+  Array of paths to copy to output (e.g., assets folder)
+  
+  Default:
+  ```json
+  ["./assets"]
+  ```
+</ParamField>
+
+<ParamField path="ref" type="string" default="main">
+  Git reference (branch/tag) for source links
+</ParamField>
+
+<ParamField path="output" type="string">
+  Output directory path for generated HTML files and assets
+</ParamField>
+
+<ParamField path="index" type="array">
+  Optional index configuration for custom navigation ordering
+</ParamField>
+
+<ParamField path="minify" type="boolean" default="false">
+  Enable HTML minification for production builds
+</ParamField>
+
+## Output Format
+
+The generator produces:
+- **HTML files**: One per API module (e.g., `http.html`, `fs.html`)
+- **Assets folder**: Copied from `additionalPathsToCopy`
+- **Navigation**: Generated table of contents with active states
+
+## Usage
+
+```bash
+doc-kit -t legacy-html
+```
+
+## Dependency Chain
+
+```
+ast → metadata → legacy-html
+```
+
+The legacy HTML generator depends on:
+1. **ast** - Parses Markdown to AST
+2. **metadata** - Extracts API metadata
+3. **legacy-html** - Renders to legacy HTML format
+
+## Implementation Details
+
+The generator:
+- Groups nodes by module using `groupNodesByModule`
+- Generates navigation from heading nodes
+- Processes chunks in parallel using worker threads
+- Builds table of contents with syntax highlighting via Shiki
+- Replaces template values with generated content
+- Optionally minifies HTML output
+- Copies asset files to output directory
+
+### Parallel Processing
+
+The `processChunk` function runs in worker threads:
+- Builds navigation with active class for current page
+- Generates table of contents (max depth: 4)
+- Builds content with syntax-highlighted code blocks
+- Returns template objects for file writing
+
+Source: `src/generators/legacy-html/`

@@ -1,0 +1,538 @@
+---
+title: Creating Custom Commands
+description: Build custom CLI commands for doc-kit with options, prompts, and interactive mode support
+---
+
+## Command Structure
+
+Commands in doc-kit are modules that export a command object conforming to the `Command` interface:
+
+```typescript
+interface Command {
+  name: string;
+  description: string;
+  options: { [key: string]: Option };
+  action: (options: any) => Promise<void>;
+}
+```
+
+Each command consists of:
+
+- **name** - The command name used in the CLI (e.g., `generate`, `interactive`)
+- **description** - A short description shown in help text
+- **options** - An object mapping option names to their definitions
+- **action** - The async function that executes when the command is run
+
+## Creating a New Command
+
+### Step 1: Create the Command File
+
+Create a new file in `bin/commands/` with your command name:
+
+```javascript
+// bin/commands/my-command.mjs
+import logger from '../../src/logger/index.mjs';
+
+/**
+ * @type {import('./types').Command}
+ */
+export default {
+  name: 'my-command',
+  description: 'Does something useful',
+
+  options: {
+    // Define your options here (see next section)
+  },
+
+  async action(opts) {
+    logger.info('Starting my-command', opts);
+
+    // Your command logic here
+
+    logger.info('Completed my-command');
+  },
+};
+```
+
+### Step 2: Register the Command
+
+Add your command to the exports in `bin/commands/index.mjs`:
+
+```javascript
+import generate from './generate.mjs';
+import interactive from './interactive.mjs';
+import myCommand from './my-command.mjs'; // Add this
+
+export default [
+  generate,
+  interactive,
+  myCommand, // Add this
+];
+```
+
+### Step 3: CLI Auto-Loading
+
+The CLI in `bin/cli.mjs` automatically loads commands from `bin/commands/index.mjs`, so no changes are needed there if you followed step 2.
+
+## Command Options
+
+Options define the flags and parameters your command accepts. Each option has:
+
+```typescript
+interface Option {
+  flags: string[];      // CLI flags (e.g., ['-i', '--input <value>'])
+  desc: string;         // Description for help text
+  prompt?: PromptConfig; // Interactive mode configuration
+}
+```
+
+### Defining Options
+
+```javascript
+options: {
+  input: {
+    flags: ['-i', '--input <patterns...>'],
+    desc: 'Input file patterns (glob)',
+    prompt: {
+      type: 'text',
+      message: 'Enter input glob patterns',
+      variadic: true,
+      required: true,
+    },
+  },
+
+  force: {
+    flags: ['-f', '--force'],
+    desc: 'Force overwrite existing files',
+    prompt: {
+      type: 'confirm',
+      message: 'Overwrite existing files?',
+      initialValue: false,
+    },
+  },
+
+  mode: {
+    flags: ['-m', '--mode <mode>'],
+    desc: 'Operation mode',
+    prompt: {
+      type: 'select',
+      message: 'Choose operation mode',
+      options: [
+        { label: 'Fast', value: 'fast' },
+        { label: 'Thorough', value: 'thorough' },
+      ],
+    },
+  },
+}
+```
+
+### Flag Syntax
+
+The flag syntax follows standard CLI conventions:
+
+- `<value>` - Required argument
+- `[value]` - Optional argument
+- `<values...>` - Variadic (multiple values)
+- `[values...]` - Optional variadic
+
+**Examples:**
+
+```javascript
+// Required single value
+flags: ['-o', '--output <path>']
+// Usage: doc-kit my-command --output ./dist
+
+// Optional single value
+flags: ['-c', '--config [path]']
+// Usage: doc-kit my-command --config ./config.json
+//    or: doc-kit my-command (uses default)
+
+// Required multiple values
+flags: ['-i', '--input <patterns...>']
+// Usage: doc-kit my-command --input "src/**/*.js" "lib/**/*.js"
+
+// Boolean flag (no value)
+flags: ['-f', '--force']
+// Usage: doc-kit my-command --force
+```
+
+## Option Types
+
+The `prompt` field configures how options are presented in interactive mode.
+
+### Text Input
+
+Single-line text input:
+
+```javascript
+prompt: {
+  type: 'text',
+  message: 'Enter a value',
+  initialValue: 'default',
+  required: true,
+}
+```
+
+**Example:**
+
+```javascript
+output: {
+  flags: ['-o', '--output <path>'],
+  desc: 'Output directory',
+  prompt: {
+    type: 'text',
+    message: 'Where should we output the files?',
+    initialValue: './dist',
+    required: true,
+  },
+}
+```
+
+### Confirmation
+
+Yes/no confirmation:
+
+```javascript
+prompt: {
+  type: 'confirm',
+  message: 'Are you sure?',
+  initialValue: false,
+}
+```
+
+**Example:**
+
+```javascript
+force: {
+  flags: ['-f', '--force'],
+  desc: 'Force overwrite existing files',
+  prompt: {
+    type: 'confirm',
+    message: 'Overwrite existing files?',
+    initialValue: false,
+  },
+}
+```
+
+### Select (Single Choice)
+
+Single choice from a list:
+
+```javascript
+prompt: {
+  type: 'select',
+  message: 'Choose one',
+  options: [
+    { label: 'Option 1', value: 'opt1' },
+    { label: 'Option 2', value: 'opt2' },
+  ],
+}
+```
+
+**Example:**
+
+```javascript
+format: {
+  flags: ['--format <type>'],
+  desc: 'Output format',
+  prompt: {
+    type: 'select',
+    message: 'Choose output format',
+    options: [
+      { label: 'JSON', value: 'json' },
+      { label: 'Markdown', value: 'md' },
+      { label: 'HTML', value: 'html' },
+    ],
+  },
+}
+```
+
+### Multi-Select (Multiple Choices)
+
+Multiple choices from a list:
+
+```javascript
+prompt: {
+  type: 'multiselect',
+  message: 'Choose multiple',
+  options: [
+    { label: 'Choice A', value: 'a' },
+    { label: 'Choice B', value: 'b' },
+  ],
+}
+```
+
+**Example:**
+
+```javascript
+target: {
+  flags: ['-t', '--target <generators...>'],
+  desc: 'Generators to run',
+  prompt: {
+    type: 'multiselect',
+    message: 'Which generators do you want to run?',
+    options: [
+      { label: 'JSON Simple', value: 'json-simple' },
+      { label: 'Legacy HTML', value: 'legacy-html' },
+      { label: 'Web', value: 'web' },
+    ],
+  },
+}
+```
+
+## Interactive Prompts
+
+The `interactive` command automatically uses the `prompt` configuration from your options. When users run:
+
+```bash
+doc-kit interactive
+```
+
+They'll be prompted to:
+1. Select a command
+2. Answer all prompts for that command's options
+
+### Prompt Configuration
+
+All prompt types support these fields:
+
+- **message** - Question to ask the user (required)
+- **type** - Input type: `text`, `confirm`, `select`, or `multiselect` (required)
+- **initialValue** - Default value (optional)
+- **required** - Whether the field must have a value (optional, default: false)
+
+**Type-specific fields:**
+
+- **text**: `variadic` - Allow multiple values (default: false)
+- **select/multiselect**: `options` - Array of `{ label, value }` objects
+
+### Making Options Interactive-Friendly
+
+Always provide helpful messages and sensible defaults:
+
+```javascript
+threads: {
+  flags: ['-p', '--threads <number>'],
+  desc: 'Number of threads to use (minimum: 1)',
+  prompt: {
+    type: 'text',
+    message: 'How many threads to allow',
+    initialValue: String(cpus().length),  // Smart default
+  },
+},
+```
+
+## Complete Example
+
+Here's a complete command that validates documentation links:
+
+```javascript
+// bin/commands/validate-links.mjs
+import { readFile } from 'node:fs/promises';
+import { glob } from 'glob';
+import logger from '../../src/logger/index.mjs';
+
+export default {
+  name: 'validate-links',
+  description: 'Check for broken links in documentation',
+
+  options: {
+    input: {
+      flags: ['-i', '--input <patterns...>'],
+      desc: 'Documentation file patterns to check',
+      prompt: {
+        type: 'text',
+        message: 'Enter file patterns to check (space-separated)',
+        initialValue: 'docs/**/*.md',
+        variadic: true,
+        required: true,
+      },
+    },
+
+    strict: {
+      flags: ['--strict'],
+      desc: 'Fail on warnings',
+      prompt: {
+        type: 'confirm',
+        message: 'Treat warnings as errors?',
+        initialValue: false,
+      },
+    },
+
+    format: {
+      flags: ['--format <type>'],
+      desc: 'Output format',
+      prompt: {
+        type: 'select',
+        message: 'Choose output format',
+        options: [
+          { label: 'Console', value: 'console' },
+          { label: 'JSON', value: 'json' },
+          { label: 'Markdown', value: 'md' },
+        ],
+      },
+    },
+  },
+
+  async action({ input, strict, format }) {
+    logger.info('Validating documentation links', { input, strict, format });
+
+    // Find all matching files
+    const files = await glob(input);
+    logger.info(`Found ${files.length} files to check`);
+
+    // Validate each file
+    const results = [];
+    for (const file of files) {
+      const content = await readFile(file, 'utf-8');
+      const links = extractLinks(content);
+      const broken = await checkLinks(links);
+
+      if (broken.length > 0) {
+        results.push({ file, broken });
+      }
+    }
+
+    // Output results
+    if (format === 'json') {
+      console.log(JSON.stringify(results, null, 2));
+    } else if (format === 'md') {
+      outputMarkdown(results);
+    } else {
+      outputConsole(results);
+    }
+
+    // Exit with error if strict mode and issues found
+    if (strict && results.length > 0) {
+      logger.error(`Found ${results.length} files with broken links`);
+      process.exit(1);
+    }
+
+    logger.info('Validation complete');
+  },
+};
+
+function extractLinks(content) {
+  // Extract markdown links: [text](url)
+  const regex = /\[([^\]]+)\]\(([^)]+)\)/g;
+  const links = [];
+  let match;
+  while ((match = regex.exec(content)) !== null) {
+    links.push(match[2]);
+  }
+  return links;
+}
+
+async function checkLinks(links) {
+  // Check if links are reachable
+  // (Implementation details omitted)
+  return [];
+}
+
+function outputMarkdown(results) {
+  console.log('# Broken Links\n');
+  for (const { file, broken } of results) {
+    console.log(`## ${file}\n`);
+    for (const link of broken) {
+      console.log(`- ${link}`);
+    }
+    console.log('');
+  }
+}
+
+function outputConsole(results) {
+  for (const { file, broken } of results) {
+    logger.warn(`${file}: ${broken.length} broken link(s)`);
+    for (const link of broken) {
+      console.log(`  - ${link}`);
+    }
+  }
+}
+```
+
+### Usage
+
+```bash
+# Direct usage
+doc-kit validate-links --input "docs/**/*.md" --strict --format json
+
+# Interactive mode
+doc-kit interactive
+# > Select command: validate-links
+# > Enter file patterns: docs/**/*.md
+# > Treat warnings as errors? No
+# > Choose output format: Console
+```
+
+## Best Practices
+
+### DO: Provide Helpful Descriptions
+
+```javascript
+options: {
+  threads: {
+    flags: ['-p', '--threads <number>'],
+    desc: 'Number of threads to use (minimum: 1)', // ✅ Clear constraint
+    // ...
+  },
+}
+```
+
+### DO: Use Smart Defaults
+
+```javascript
+import { cpus } from 'node:os';
+
+prompt: {
+  type: 'text',
+  message: 'How many threads?',
+  initialValue: String(cpus().length), // ✅ System-aware default
+}
+```
+
+### DO: Validate Input
+
+```javascript
+async action({ threads }) {
+  const numThreads = parseInt(threads, 10);
+
+  if (numThreads < 1) {
+    logger.error('Threads must be at least 1');
+    process.exit(1);
+  }
+
+  // Continue with valid input
+}
+```
+
+### DON'T: Use Unclear Messages
+
+```javascript
+prompt: {
+  message: 'Value?', // ❌ Too vague
+}
+```
+
+### DON'T: Forget Error Handling
+
+```javascript
+async action(opts) {
+  try {
+    await doWork(opts);
+  } catch (error) {
+    logger.error('Command failed', error);
+    process.exit(1); // ✅ Exit with error code
+  }
+}
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Architecture" icon="sitemap" href="/advanced/architecture">
+    Understand how commands integrate with the generator system
+  </Card>
+  <Card title="Comparators" icon="code-compare" href="/advanced/comparators">
+    Learn how to create build comparators for CI/CD
+  </Card>
+</CardGroup>

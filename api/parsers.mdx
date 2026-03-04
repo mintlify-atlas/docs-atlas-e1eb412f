@@ -1,0 +1,305 @@
+---
+title: 'Parser Utilities'
+description: 'Utilities for parsing markdown and JSON files used in documentation generation'
+---
+
+## Overview
+
+The parser utilities provide functions for parsing markdown files (changelog, index) and JSON files (type maps) used during documentation generation.
+
+## Markdown Parsers
+
+### parseChangelog
+
+Retrieves all Node.js major versions from a CHANGELOG.md file and returns an array of release entries with version and LTS status.
+
+```javascript
+import { parseChangelog } from './parsers/markdown.mjs';
+
+const releases = await parseChangelog(
+  'https://raw.githubusercontent.com/nodejs/node/HEAD/CHANGELOG.md'
+);
+```
+
+**Source:** `parsers/markdown.mjs:22`
+
+#### Parameters
+
+<ParamField path="path" type="string | URL" required>
+  Path or URL to the CHANGELOG.md file
+</ParamField>
+
+#### Returns
+
+<ResponseField name="releases" type="Promise<ApiDocReleaseEntry[]>">
+  Array of release entries, each containing:
+  
+  <Expandable title="properties">
+    <ResponseField name="version" type="SemVer">
+      Coerced semantic version object
+    </ResponseField>
+    
+    <ResponseField name="isLts" type="boolean">
+      Whether this is a Long Term Support release
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+#### Example Output
+
+```javascript
+[
+  { version: SemVer('20.0.0'), isLts: false },
+  { version: SemVer('18.0.0'), isLts: true },
+  { version: SemVer('16.0.0'), isLts: true },
+]
+```
+
+#### Implementation Details
+
+Uses regex pattern to match changelog entries:
+```javascript
+const NODE_VERSIONS_REGEX = /\* \[Node\.js ([0-9.]+)\]\S+ (.*)\r?\n/g;
+const NODE_LTS_VERSION_REGEX = /Long Term Support/i;
+```
+
+### parseIndex
+
+Retrieves all document titles from an index.md file for sidebar generation.
+
+```javascript
+import { parseIndex } from './parsers/markdown.mjs';
+
+const index = await parseIndex(
+  'https://raw.githubusercontent.com/nodejs/node/HEAD/doc/api/index.md'
+);
+```
+
+**Source:** `parsers/markdown.mjs:39`
+
+#### Parameters
+
+<ParamField path="path" type="string | URL" required>
+  Path or URL to the index.md file. Returns empty array if path is falsy.
+</ParamField>
+
+#### Returns
+
+<ResponseField name="index" type="Promise<Array<{ section: string, api: string }>>">
+  Array of index entries with section title and API name
+</ResponseField>
+
+#### Example Output
+
+```javascript
+[
+  { section: 'File system', api: 'fs' },
+  { section: 'HTTP', api: 'http' },
+  { section: 'Path', api: 'path' },
+]
+```
+
+#### Implementation Details
+
+Uses regex pattern to match list items:
+```javascript
+const LIST_ITEM_REGEX = /\* \[(.*?)\]\((.*?)\.md\)/g;
+```
+
+## JSON Parsers
+
+### parseTypeMap
+
+Retrieves a type mapping from a JSON file, used to map Node.js types to standard types.
+
+```javascript
+import { parseTypeMap } from './parsers/json.mjs';
+
+const typeMap = await parseTypeMap('./typeMap.json');
+```
+
+**Source:** `parsers/json.mjs:11`
+
+#### Parameters
+
+<ParamField path="path" type="string | URL" required>
+  Path or URL to the type map JSON file. Returns empty object if path is falsy.
+</ParamField>
+
+#### Returns
+
+<ResponseField name="typeMap" type="Promise<Record<string, string>>">
+  Object mapping source types to target types
+</ResponseField>
+
+#### Example Input File
+
+```json
+{
+  "Integer": "number",
+  "String": "string",
+  "Boolean": "boolean",
+  "Buffer": "Uint8Array",
+  "Object": "object"
+}
+```
+
+#### Example Usage
+
+```javascript
+const typeMap = await parseTypeMap('./typeMap.json');
+console.log(typeMap['Integer']); // 'number'
+console.log(typeMap['Buffer']); // 'Uint8Array'
+```
+
+## Shared Utilities
+
+All parsers use the `loadFromURL` utility to fetch content from URLs or file paths:
+
+```javascript
+import { loadFromURL } from '../utils/parser.mjs';
+
+const content = await loadFromURL('https://example.com/file.md');
+// or
+const content = await loadFromURL('./local/file.md');
+```
+
+This utility handles:
+- HTTP/HTTPS URLs
+- File system paths
+- URL objects
+- Error handling for network and file system errors
+
+## Integration with Configuration
+
+Parsers are automatically invoked by the configuration system when loading configuration:
+
+```javascript
+import { createRunConfiguration } from './utils/configuration/index.mjs';
+
+// String values are automatically parsed
+const config = await createRunConfiguration({
+  changelog: 'https://raw.githubusercontent.com/nodejs/node/HEAD/CHANGELOG.md',
+  index: 'https://raw.githubusercontent.com/nodejs/node/HEAD/doc/api/index.md',
+  typeMap: './typeMap.json',
+});
+
+// After parsing, config contains:
+console.log(config.global.changelog); // Array of release entries
+console.log(config.global.index); // Array of index entries
+console.log(config.metadata.typeMap); // Type map object
+```
+
+**Source:** `utils/configuration/index.mjs:58`
+
+## Examples
+
+### Parsing Changelog with Custom URL
+
+```javascript
+import { parseChangelog } from './parsers/markdown.mjs';
+
+const changelog = await parseChangelog(
+  'https://raw.githubusercontent.com/nodejs/node/v20.x/CHANGELOG.md'
+);
+
+// Filter LTS versions only
+const ltsVersions = changelog.filter(release => release.isLts);
+console.log('LTS versions:', ltsVersions.map(r => r.version.version));
+```
+
+### Building Documentation Index
+
+```javascript
+import { parseIndex } from './parsers/markdown.mjs';
+
+const index = await parseIndex('./doc/api/index.md');
+
+// Generate sidebar navigation
+const sidebar = index.map(({ section, api }) => ({
+  title: section,
+  href: `/docs/api/${api}`,
+}));
+```
+
+### Loading Type Map for Generator
+
+```javascript
+import { parseTypeMap } from './parsers/json.mjs';
+import getConfig from './utils/configuration/index.mjs';
+
+// Inside a generator
+const config = getConfig('metadata');
+const typeMap = await parseTypeMap(config.typeMap);
+
+// Use type map to transform types
+const transformType = (type) => typeMap[type] || type;
+console.log(transformType('Integer')); // 'number'
+```
+
+### Error Handling
+
+```javascript
+import { parseChangelog } from './parsers/markdown.mjs';
+import logger from './logger/index.mjs';
+
+try {
+  const changelog = await parseChangelog(
+    'https://example.com/CHANGELOG.md'
+  );
+} catch (err) {
+  logger.error('Failed to parse changelog', { error: err.message });
+  // Use default or fallback
+}
+```
+
+### Custom Parser Pattern
+
+If you need to parse additional markdown patterns:
+
+```javascript
+import { loadFromURL } from '../utils/parser.mjs';
+
+// Parse custom list format
+const parseCustomList = async (path) => {
+  if (!path) return [];
+  
+  const content = await loadFromURL(path);
+  const CUSTOM_REGEX = /^- \*\*(.+?)\*\*: (.+)$/gm;
+  const items = Array.from(content.matchAll(CUSTOM_REGEX));
+  
+  return items.map(([, key, value]) => ({ key, value }));
+};
+```
+
+## Type Definitions
+
+### ApiDocReleaseEntry
+
+```typescript
+type ApiDocReleaseEntry = {
+  version: SemVer;
+  isLts: boolean;
+};
+```
+
+### IndexEntry
+
+```typescript
+type IndexEntry = {
+  section: string;
+  api: string;
+};
+```
+
+### TypeMap
+
+```typescript
+type TypeMap = Record<string, string>;
+```
+
+## Related APIs
+
+- [Configuration API](/api/configuration) - Automatically uses parsers during config loading
+- [Generator API](/api/generators) - Generators consume parsed data
+- [Logger API](/api/logger) - For logging parse errors and warnings

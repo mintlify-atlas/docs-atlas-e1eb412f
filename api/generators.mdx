@@ -1,0 +1,110 @@
+---
+title: 'Generator Orchestration'
+description: 'API for creating and running documentation generators with dependency management and parallel processing'
+---
+
+## Overview
+
+The generator orchestration system manages the execution of documentation generators in dependency order, with support for parallel processing and streaming results.
+
+## createGenerator
+
+Creates a generator orchestration system that schedules and executes generators.
+
+```javascript
+import createGenerator from './generators.mjs';
+
+const { runGenerators } = createGenerator();
+```
+
+### Returns
+
+<ResponseField name="runGenerators" type="function" required>
+  Function to execute generators with configuration
+</ResponseField>
+
+## runGenerators
+
+Runs all requested generators with their dependencies in the correct order.
+
+```javascript
+const results = await runGenerators(configuration);
+```
+
+### Parameters
+
+<ParamField path="configuration" type="Configuration" required>
+  Runtime configuration object containing:
+  
+  <Expandable title="properties">
+    <ParamField path="target" type="string[]" required>
+      Array of generator names to execute
+    </ParamField>
+    
+    <ParamField path="threads" type="number" required>
+      Number of worker threads to use for parallel processing
+    </ParamField>
+    
+    <ParamField path="global" type="GlobalConfiguration">
+      Global configuration options inherited by all generators
+    </ParamField>
+  </Expandable>
+</ParamField>
+
+### Returns
+
+<ResponseField name="results" type="unknown[]">
+  Array of results from all requested generators, in the same order as the `target` array
+</ResponseField>
+
+### Example
+
+```javascript
+import createGenerator from './generators.mjs';
+import { setConfig } from './utils/configuration/index.mjs';
+
+const { runGenerators } = createGenerator();
+
+// Set up configuration
+const config = await setConfig({
+  input: 'doc/api/*.md',
+  output: 'dist/',
+  target: ['metadata', 'json-simple'],
+  threads: 4,
+  version: '20.0.0',
+});
+
+// Run generators
+const results = await runGenerators(config);
+```
+
+## Generator Execution Flow
+
+The orchestration system:
+
+1. **Schedules generators** - Analyzes dependencies and schedules generators in the correct order
+2. **Creates worker pool** - Initializes a worker thread pool based on the `threads` configuration
+3. **Executes generators** - Runs generators, waiting for dependencies to complete first
+4. **Handles streaming** - For generators that yield results, collects streaming output
+5. **Parallel processing** - Creates parallel workers for generators with `hasParallelProcessor: true`
+6. **Returns results** - Returns all generator outputs in the requested order
+
+## Internal Methods
+
+### scheduleGenerator
+
+Internal method that schedules a generator and its dependencies for execution.
+
+**Source:** `generators.mjs:51`
+
+### getDependencyInput
+
+Retrieves the collected input from a dependency generator, handling both regular and streaming results.
+
+**Source:** `generators.mjs:31`
+
+## Related APIs
+
+- [Configuration API](/api/configuration) - For managing runtime configuration
+- [Logger API](/api/logger) - For debugging generator execution
+- [Metadata API](/api/metadata) - For working with extracted API documentation metadata

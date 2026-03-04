@@ -1,0 +1,264 @@
+---
+title: File Operation Utilities
+description: Utilities for loading files, parsing URLs, and manipulating data structures
+---
+
+Various utility functions for file I/O, URL handling, object manipulation, and array operations used throughout doc-kit.
+
+## URL Utilities
+
+### toParsedURL
+
+Converts a value to a parsed URL object.
+
+```javascript
+import { toParsedURL } from 'doc-kit/utils/url';
+
+const url = toParsedURL('https://example.com/path');
+// url is a URL object
+
+const alreadyParsed = toParsedURL(new URL('file:///path'));
+// Returns the URL as-is
+
+const invalid = toParsedURL('not a url');
+// invalid is null
+```
+
+<ParamField path="url" type="string | URL" required>
+  The URL string or URL object to parse
+</ParamField>
+
+<ResponseField name="return" type="URL | null">
+  The parsed URL object, or `null` if parsing fails
+</ResponseField>
+
+### loadFromURL
+
+Loads content from a URL or file path. Automatically detects whether to use filesystem or network fetch.
+
+```javascript
+import { loadFromURL } from 'doc-kit/utils/url';
+
+// Load from file system
+const fileContent = await loadFromURL('file:///path/to/file.txt');
+const fileContent2 = await loadFromURL('/path/to/file.txt');
+
+// Load from network
+const networkContent = await loadFromURL('https://example.com/data.txt');
+```
+
+<ParamField path="url" type="string | URL" required>
+  The URL or file path to load
+</ParamField>
+
+<ResponseField name="return" type="Promise<string>">
+  Promise resolving to file/response content as a string
+</ResponseField>
+
+**Protocol Detection:**
+- `file:` protocol or invalid URL → reads from filesystem
+- Other protocols (`http:`, `https:`, etc.) → fetches from network
+
+### importFromURL
+
+Dynamically imports a module from a URL, using JSON import assertion if applicable.
+
+```javascript
+import { importFromURL } from 'doc-kit/utils/url';
+
+// Import JS module
+const module = await importFromURL('./config.mjs');
+
+// Import JSON with assertion
+const data = await importFromURL('./data.json');
+
+// Import from absolute path
+const absolute = await importFromURL('/absolute/path/module.mjs');
+
+// Import from file URL
+const fileUrl = await importFromURL('file:///path/to/module.mjs');
+```
+
+<ParamField path="url" type="string | URL" required>
+  The URL of the module to import
+</ParamField>
+
+<ResponseField name="return" type="Promise<any>">
+  The imported module (returns `default` export if available, otherwise entire module)
+</ResponseField>
+
+**Features:**
+- Automatically adds JSON import assertion for `.json` files
+- Converts relative paths to `file://` URLs
+- Returns `module.default` if available, otherwise returns entire module object
+
+## Object Utilities
+
+### lazy
+
+Creates a lazy-initialized function that caches the result of the first invocation.
+
+```javascript
+import { lazy } from 'doc-kit/utils/misc';
+
+const expensiveOperation = lazy(() => {
+  console.log('Computing...');
+  return heavyComputation();
+});
+
+const result1 = expensiveOperation(); // Logs "Computing..."
+const result2 = expensiveOperation(); // No log, returns cached result
+result1 === result2; // true
+```
+
+<ParamField path="fn" type="(...args: any[]) => any" required>
+  The function to be lazily executed
+</ParamField>
+
+<ResponseField name="return" type="(...args: any[]) => any">
+  A wrapper function that lazily executes `fn` and caches its result
+</ResponseField>
+
+**Note:** The cached result is shared across all invocations. Arguments are passed to `fn` on first call, but subsequent calls ignore arguments and return the cached result.
+
+### isPlainObject
+
+Checks if a value is a plain JavaScript object.
+
+```javascript
+import { isPlainObject } from 'doc-kit/utils/misc';
+
+isPlainObject({ a: 1 });           // true
+isPlainObject({});                 // true
+isPlainObject([]);                 // false (array)
+isPlainObject(null);               // false
+isPlainObject(new Date());         // true (object, but not plain)
+isPlainObject(Object.create(null)); // true
+```
+
+<ParamField path="value" type="*" required>
+  The value to check
+</ParamField>
+
+<ResponseField name="return" type="boolean">
+  `true` if the value is a plain object (not `null`, not an array, but is an object)
+</ResponseField>
+
+**Definition:** An object is "plain" if it's non-null, has type `'object'`, and is not an array.
+
+### deepMerge
+
+Recursively merges multiple objects deeply.
+
+```javascript
+import { deepMerge } from 'doc-kit/utils/misc';
+
+const base = { a: 1, b: { c: 2 } };
+const overrides = { b: { d: 3 }, e: 4 };
+const defaults = { a: 0, b: { c: 0, d: 0 }, f: 5 };
+
+const merged = deepMerge(overrides, defaults, base);
+// {
+//   a: 1,           // from base
+//   b: { c: 2, d: 3 }, // merged from all
+//   e: 4,           // from overrides
+//   f: 5            // from defaults
+// }
+```
+
+<ParamField path="objects" type="...T" required>
+  Objects to merge (last argument is the base, earlier arguments override it)
+</ParamField>
+
+<ResponseField name="return" type="T">
+  A new object containing the deep merge of all provided objects
+</ResponseField>
+
+**Merge Order:**
+1. The **last** argument is the base
+2. Earlier arguments override later ones
+3. Plain objects are merged recursively
+4. Non-object values use the first defined value (left to right)
+
+**Example with priority:**
+```javascript
+deepMerge(userConfig, defaultConfig, {});
+// userConfig takes precedence over defaultConfig
+```
+
+## Array Utilities
+
+### enforceArray
+
+Converts a value to an array (if not already an array).
+
+```javascript
+import { enforceArray } from 'doc-kit/utils/array';
+
+enforceArray([1, 2, 3]);  // [1, 2, 3] (unchanged)
+enforceArray('single');   // ['single']
+enforceArray(42);         // [42]
+enforceArray(null);       // [null]
+```
+
+<ParamField path="val" type="T | T[]" required>
+  The value to convert to an array
+</ParamField>
+
+<ResponseField name="return" type="T[]">
+  The value as an array
+</ResponseField>
+
+**Use Case:** Normalizing configuration values that accept either a single item or an array:
+
+```javascript
+function processFiles(files) {
+  const fileArray = enforceArray(files);
+  fileArray.forEach(file => { /* ... */ });
+}
+
+processFiles('single.txt');        // Works
+processFiles(['a.txt', 'b.txt']);  // Also works
+```
+
+## Usage Patterns
+
+### Configuration Loading
+
+```javascript
+import { importFromURL, deepMerge } from 'doc-kit/utils';
+
+const userConfig = await importFromURL('./doc-kit.config.mjs');
+const defaults = { threads: 4, chunkSize: 25 };
+const config = deepMerge(userConfig, defaults, {});
+```
+
+### Template Loading
+
+```javascript
+import { loadFromURL, lazy } from 'doc-kit/utils';
+
+const loadTemplate = lazy(async () => {
+  return await loadFromURL('./template.html');
+});
+
+const template1 = await loadTemplate(); // Loads from disk
+const template2 = await loadTemplate(); // Returns cached result
+```
+
+### Input Normalization
+
+```javascript
+import { enforceArray, isPlainObject } from 'doc-kit/utils';
+
+function processInput(input) {
+  const items = enforceArray(input);
+  
+  return items.map(item => {
+    if (isPlainObject(item)) {
+      return normalizeObject(item);
+    }
+    return item;
+  });
+}
+```

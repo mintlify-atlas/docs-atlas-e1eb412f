@@ -1,0 +1,89 @@
+---
+title: 'Simple JSON Generator'
+description: 'Generates a simplified JSON version of API docs for debugging and testing'
+---
+
+## Overview
+
+The Simple JSON generator creates a simplified JSON representation of the API documentation. This generator is designed for debugging and testing purposes rather than production use.
+
+<Note>
+  This generator produces a single consolidated JSON file with all API documentation, making it ideal for debugging but not suitable for production deployment.
+</Note>
+
+## Metadata
+
+<ParamField path="name" type="string" default="json-simple">
+  Generator identifier
+</ParamField>
+
+<ParamField path="version" type="string" default="1.0.0">
+  Generator version
+</ParamField>
+
+<ParamField path="dependsOn" type="string" default="metadata">
+  Requires metadata generator output as input
+</ParamField>
+
+## Configuration
+
+<ParamField path="output" type="string">
+  Output directory path for the generated JSON file
+</ParamField>
+
+<ParamField path="minify" type="boolean" default="false">
+  Enable JSON minification (removes whitespace and indentation)
+</ParamField>
+
+## Output Format
+
+The generator produces:
+- **Single file**: `api-docs.json` containing all API documentation
+- **Format**: Array of simplified metadata entries
+- **Indentation**: 2 spaces (unless minified)
+
+## Usage
+
+```bash
+doc-kit -t json-simple
+```
+
+With minification:
+```bash
+doc-kit -t json-simple --config.json-simple.minify=true
+```
+
+## Dependency Chain
+
+```
+ast → metadata → json-simple
+```
+
+The simple JSON generator depends on:
+1. **ast** - Parses Markdown to AST
+2. **metadata** - Extracts API metadata
+3. **json-simple** - Converts to simplified JSON
+
+## Implementation Details
+
+The generator:
+- Deep clones content nodes to avoid affecting upstream nodes
+- Removes redundant nodes using `unist-util-remove`:
+  - Stability nodes (already in metadata)
+  - Heading nodes (already represented in metadata)
+- Maps input to simplified structure
+- Writes consolidated output to `api-docs.json`
+
+### Content Cleaning
+
+The generator removes:
+- **Stability indicators**: Already captured in entry metadata
+- **Headings**: Already represented in the heading structure
+
+This produces cleaner JSON focused on actual content rather than duplicated metadata.
+
+<Warning>
+  The full JSON generator (in development) will create one JSON file per top-level API doc file. Use that generator for production deployments.
+</Warning>
+
+Source: `src/generators/json-simple/`

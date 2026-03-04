@@ -1,0 +1,416 @@
+---
+title: 'Metadata Extraction'
+description: 'API for extracting and managing API documentation metadata entries'
+---
+
+## Overview
+
+The metadata extraction system creates structured metadata from parsed API documentation, handling headings, stability indexes, YAML properties, and navigation entries.
+
+## createMetadata
+
+Creates a metadata builder instance for extracting structured information from API documentation.
+
+```javascript
+import createMetadata from './metadata.mjs';
+import GithubSlugger from 'github-slugger';
+
+const slugger = new GithubSlugger();
+const metadata = createMetadata(slugger);
+```
+
+### Parameters
+
+<ParamField path="slugger" type="GithubSlugger" required>
+  GitHub Slugger instance for generating URL-safe slugs from headings
+</ParamField>
+
+### Returns
+
+<ResponseField name="metadata" type="MetadataBuilder">
+  Metadata builder instance with methods:
+  
+  <Expandable title="methods">
+    <ResponseField name="setHeading" type="(heading: HeadingMetadataParent) => void">
+      Set the heading for the current metadata entry
+    </ResponseField>
+    
+    <ResponseField name="addStability" type="(stability: StabilityIndexParent) => void">
+      Add a stability index node to the metadata
+    </ResponseField>
+    
+    <ResponseField name="updateProperties" type="(properties: Partial<ApiDocRawMetadataEntry>) => void">
+      Update metadata properties from YAML or other sources
+    </ResponseField>
+    
+    <ResponseField name="setYamlPosition" type="(position: Position) => void">
+      Set the position of the YAML block in the source file
+    </ResponseField>
+    
+    <ResponseField name="create" type="(apiDoc: FileInfo, section: AST) => ApiDocMetadataEntry">
+      Generate a metadata entry for an API doc section
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+## setHeading
+
+Sets the heading for the current metadata entry. The heading is cloned to prevent later mutations.
+
+```javascript
+metadata.setHeading({
+  type: 'heading',
+  data: {
+    text: 'fs.readFile(path[, options], callback)',
+    type: 'method',
+  },
+  children: [/* ... */],
+});
+```
+
+**Source:** `metadata.mjs:38`
+
+### Parameters
+
+<ParamField path="heading" type="HeadingMetadataParent" required>
+  Heading node containing:
+  - `type` - Node type (usually 'heading')
+  - `data.text` - Heading text
+  - `data.type` - API type (method, class, property, etc.)
+  - `children` - AST child nodes
+</ParamField>
+
+## addStability
+
+Adds a stability index node to the metadata.
+
+```javascript
+metadata.addStability({
+  type: 'stability',
+  children: [{
+    type: 'text',
+    value: 'Stability: 2 - Stable',
+  }],
+});
+```
+
+**Source:** `metadata.mjs:48`
+
+### Parameters
+
+<ParamField path="stability" type="StabilityIndexParent" required>
+  Stability index AST node
+</ParamField>
+
+## updateProperties
+
+Updates metadata properties from YAML frontmatter or other sources. Can be called multiple times to complement data.
+
+```javascript
+metadata.updateProperties({
+  type: 'module',
+  added: ['v18.0.0'],
+  deprecated: ['v20.0.0'],
+  changes: [
+    {
+      version: 'v19.0.0',
+      'pr-url': 'https://github.com/nodejs/node/pull/12345',
+      description: 'Added new parameter',
+    },
+  ],
+});
+```
+
+**Source:** `metadata.mjs:64`
+
+### Parameters
+
+<ParamField path="properties" type="Partial<ApiDocRawMetadataEntry>" required>
+  Metadata properties to update:
+  
+  <Expandable title="properties">
+    <ParamField path="type" type="string">
+      API type override (method, class, module, etc.)
+    </ParamField>
+    
+    <ParamField path="added" type="string[]">
+      Versions when the API was added
+    </ParamField>
+    
+    <ParamField path="deprecated" type="string[]">
+      Versions when the API was deprecated
+    </ParamField>
+    
+    <ParamField path="removed" type="string[]">
+      Versions when the API was removed
+    </ParamField>
+    
+    <ParamField path="introduced_in" type="string">
+      Version when introduced
+    </ParamField>
+    
+    <ParamField path="napiVersion" type="string">
+      N-API version
+    </ParamField>
+    
+    <ParamField path="source_link" type="string">
+      Link to source code
+    </ParamField>
+    
+    <ParamField path="changes" type="ChangeEntry[]">
+      Array of change log entries
+    </ParamField>
+    
+    <ParamField path="updates" type="UpdateEntry[]">
+      Array of update entries
+    </ParamField>
+    
+    <ParamField path="tags" type="string[]">
+      Classification tags
+    </ParamField>
+    
+    <ParamField path="llm_description" type="string">
+      LLM-friendly description
+    </ParamField>
+  </Expandable>
+</ParamField>
+
+### Behavior
+
+- Array properties are concatenated (pushed) rather than replaced
+- Non-array properties are overwritten
+- Called multiple times to complement YAML blocks from the same entry
+
+## setYamlPosition
+
+Sets the position of the YAML block in the source file for error reporting.
+
+```javascript
+metadata.setYamlPosition({
+  start: { line: 10, column: 1, offset: 150 },
+  end: { line: 15, column: 1, offset: 200 },
+});
+```
+
+**Source:** `metadata.mjs:78`
+
+### Parameters
+
+<ParamField path="yaml_position" type="Position" required>
+  Unist position object with start and end locations
+</ParamField>
+
+## create
+
+Generates a complete metadata entry for an API doc section. This is the final step after setting heading, stability, and properties.
+
+```javascript
+const entry = metadata.create(
+  { stem: 'fs', basename: 'fs.md' },
+  sectionContentAST
+);
+```
+
+**Source:** `metadata.mjs:93`
+
+### Parameters
+
+<ParamField path="apiDoc" type="FileInfo" required>
+  File information object:
+  
+  <Expandable title="properties">
+    <ParamField path="stem" type="string">
+      File name without extension (e.g., 'fs')
+    </ParamField>
+    
+    <ParamField path="basename" type="string">
+      Full file name (e.g., 'fs.md')
+    </ParamField>
+  </Expandable>
+</ParamField>
+
+<ParamField path="section" type="AST" required>
+  AST tree containing the nodes of the API doc entry section
+</ParamField>
+
+### Returns
+
+<ResponseField name="entry" type="ApiDocMetadataEntry">
+  Complete metadata entry:
+  
+  <Expandable title="properties">
+    <ResponseField name="api" type="string">
+      API module name (from file stem)
+    </ResponseField>
+    
+    <ResponseField name="slug" type="string">
+      URL-safe slug for the section
+    </ResponseField>
+    
+    <ResponseField name="source_link" type="string">
+      Link to source code
+    </ResponseField>
+    
+    <ResponseField name="api_doc_source" type="string">
+      Path to source documentation file
+    </ResponseField>
+    
+    <ResponseField name="added_in" type="string[]">
+      Versions when added
+    </ResponseField>
+    
+    <ResponseField name="deprecated_in" type="string[]">
+      Versions when deprecated
+    </ResponseField>
+    
+    <ResponseField name="removed_in" type="string[]">
+      Versions when removed
+    </ResponseField>
+    
+    <ResponseField name="n_api_version" type="string">
+      N-API version
+    </ResponseField>
+    
+    <ResponseField name="updates" type="UpdateEntry[]">
+      Update entries
+    </ResponseField>
+    
+    <ResponseField name="changes" type="ChangeEntry[]">
+      Change log entries
+    </ResponseField>
+    
+    <ResponseField name="heading" type="HeadingMetadataParent">
+      Heading AST with slug and type
+    </ResponseField>
+    
+    <ResponseField name="stability" type="StabilityIndexParent">
+      Stability index information
+    </ResponseField>
+    
+    <ResponseField name="content" type="AST">
+      Section content as AST
+    </ResponseField>
+    
+    <ResponseField name="tags" type="string[]">
+      Classification tags
+    </ResponseField>
+    
+    <ResponseField name="introduced_in" type="string">
+      Version introduced
+    </ResponseField>
+    
+    <ResponseField name="llm_description" type="string">
+      LLM-friendly description
+    </ResponseField>
+    
+    <ResponseField name="yaml_position" type="Position">
+      Position of YAML in source
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+## Usage Pattern
+
+Typical workflow for extracting metadata from an API doc section:
+
+```javascript
+import createMetadata from './metadata.mjs';
+import GithubSlugger from 'github-slugger';
+
+const slugger = new GithubSlugger();
+const metadata = createMetadata(slugger);
+
+// 1. Set the heading
+metadata.setHeading(headingNode);
+
+// 2. Add stability if present
+if (stabilityNode) {
+  metadata.addStability(stabilityNode);
+}
+
+// 3. Update properties from YAML (can be called multiple times)
+if (yamlNode) {
+  metadata.setYamlPosition(yamlNode.position);
+  metadata.updateProperties(yamlNode.data);
+}
+
+// 4. Create the final metadata entry
+const entry = metadata.create(
+  { stem: 'fs', basename: 'fs.md' },
+  sectionContentAST
+);
+```
+
+## Example Output
+
+```javascript
+{
+  api: 'fs',
+  slug: 'fs_fs_readfile_path_options_callback',
+  source_link: 'https://github.com/nodejs/node/blob/v20.0.0/lib/fs.js#L100',
+  api_doc_source: 'doc/api/fs.md',
+  added_in: ['v0.0.2'],
+  deprecated_in: [],
+  removed_in: [],
+  n_api_version: undefined,
+  updates: [],
+  changes: [
+    {
+      version: 'v18.0.0',
+      'pr-url': 'https://github.com/nodejs/node/pull/12345',
+      description: 'Added support for async iterators',
+    },
+  ],
+  heading: {
+    type: 'heading',
+    data: {
+      text: 'fs.readFile(path[, options], callback)',
+      type: 'method',
+      slug: 'fs_fs_readfile_path_options_callback',
+    },
+    children: [/* ... */],
+  },
+  stability: {
+    type: 'root',
+    children: [/* ... */],
+  },
+  content: {
+    type: 'root',
+    children: [/* section content AST */],
+  },
+  tags: ['async', 'filesystem'],
+  introduced_in: 'v0.0.2',
+  llm_description: 'Asynchronously reads the entire contents of a file',
+  yaml_position: {
+    start: { line: 10, column: 1, offset: 150 },
+    end: { line: 15, column: 1, offset: 200 },
+  },
+}
+```
+
+## Integration with Generators
+
+The metadata API is used by the `metadata` generator to extract structured information from parsed API docs:
+
+```javascript
+import createMetadata from './metadata.mjs';
+
+// Inside metadata generator
+for (const apiDoc of parsedDocs) {
+  const slugger = new GithubSlugger();
+  const metadata = createMetadata(slugger);
+  
+  // Extract metadata from each section
+  for (const section of apiDoc.sections) {
+    // ... set heading, stability, properties
+    const entry = metadata.create(apiDoc, section.content);
+    entries.push(entry);
+  }
+}
+```
+
+## Related APIs
+
+- [Generator API](/api/generators) - For running the metadata generator
+- [Parser API](/api/parsers) - For parsing source markdown files
+- [Configuration API](/api/configuration) - For configuring metadata extraction

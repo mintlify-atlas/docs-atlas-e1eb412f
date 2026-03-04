@@ -1,0 +1,103 @@
+---
+title: 'Orama Database Generator'
+description: 'Generates an Orama search database for API documentation'
+---
+
+## Overview
+
+The Orama Database generator creates a searchable database using the [Orama](https://docs.oramasearch.com/) search engine. It indexes API documentation with hierarchical titles, descriptions, and site sections for fast client-side search.
+
+## Metadata
+
+<ParamField path="name" type="string" default="orama-db">
+  Generator identifier
+</ParamField>
+
+<ParamField path="version" type="string" default="1.0.0">
+  Generator version
+</ParamField>
+
+<ParamField path="dependsOn" type="string" default="metadata">
+  Requires metadata generator output as input
+</ParamField>
+
+## Configuration
+
+<ParamField path="output" type="string">
+  Output directory path for the generated database file
+</ParamField>
+
+<ParamField path="minify" type="boolean" default="false">
+  Enable JSON minification of the database file
+</ParamField>
+
+## Output Format
+
+The generator produces:
+- **Database file**: `orama-db.json`
+- **Format**: Orama database format with indexed documents
+- **Schema**: 
+  - `title`: Hierarchical title (e.g., "fs > readFile")
+  - `description`: First paragraph of entry content
+  - `href`: Link to entry (e.g., `fs.html#read-file`)
+  - `siteSection`: Top-level API module name
+
+## Usage
+
+```bash
+doc-kit -t orama-db
+```
+
+With minification:
+```bash
+doc-kit -t orama-db --config.orama-db.minify=true
+```
+
+## Dependency Chain
+
+```
+ast → metadata → orama-db
+```
+
+The Orama database generator depends on:
+1. **ast** - Parses Markdown to AST
+2. **metadata** - Extracts API metadata
+3. **orama-db** - Indexes into searchable database
+
+## Implementation Details
+
+The generator:
+- Creates an Orama database instance with predefined schema
+- Groups nodes by API module
+- Builds hierarchical titles showing the path to each entry
+- Extracts first paragraph as description
+- Inserts all documents in batch
+- Saves serialized database to JSON file
+
+### Schema Definition
+
+The Orama database uses this schema (from `constants.mjs`):
+```javascript
+{
+  title: 'string',
+  description: 'string',
+  href: 'string',
+  siteSection: 'string'
+}
+```
+
+### Hierarchical Titles
+
+The `buildHierarchicalTitle` function creates breadcrumb-style titles:
+- Shows the path from module to specific entry
+- Example: `"File System > fs.readFile > Synchronous API"`
+- Helps users understand context in search results
+
+### Description Extraction
+
+The generator:
+- Finds the first paragraph node in entry content
+- Converts to plain text using `transformNodeToString`
+- Strips markdown formatting for clean descriptions
+
+Source: `src/generators/orama-db/`
