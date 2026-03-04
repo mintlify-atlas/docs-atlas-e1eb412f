@@ -34,8 +34,7 @@
           {
             "group": "Commands",
             "pages": [
-              "commands/generate",
-              "commands/interactive"
+              "commands/generate"
             ]
           },
           {

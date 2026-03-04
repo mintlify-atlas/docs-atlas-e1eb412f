@@ -11,7 +11,21 @@ The `generate` command is the primary command for generating API documentation. 
 doc-kit generate [options]
 ```
 
-## Options
+## Global Options
+
+These options apply to the entire `doc-kit` CLI, not just the `generate` command.
+
+<ParamField path="--log-level" type="string">
+  Set the logging verbosity level. Controls how much diagnostic information is printed during execution.
+  
+  **Choices:** `debug`, `info`, `warn`, `error`, `fatal`
+  
+  **Default:** `info`
+  
+  **Example:** `--log-level debug`
+</ParamField>
+
+## Command Options
 
 <ParamField path="--config-file" type="string">
   Path to a configuration file. When provided, the configuration file will be loaded and merged with CLI options and defaults.
@@ -221,6 +235,7 @@ npx doc-kit generate --config-file ./doc-kit.config.mjs
   </Accordion>
 </AccordionGroup>
 
-## Related Commands
+## Additional Resources
 
-- [interactive](/commands/interactive) - Launch the guided CLI wizard for an interactive setup experience
+- [Configuration](/configuration/overview) - Learn about configuration files and options
+- [Generators](/generators/overview) - Explore available generators and create custom ones
