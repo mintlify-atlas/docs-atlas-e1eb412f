@@ -1,0 +1,120 @@
+{
+  "projectType": "cli-tool",
+  "projectName": "doc-kit",
+  "projectDescription": "A powerful CLI tool to generate API documentation for Node.js projects",
+  "theme": "aspen",
+  "primaryColor": "#339933",
+  "lightColor": "#68BB59",
+  "darkColor": "#026E00",
+  "navigation": {
+    "tabs": [
+      {
+        "tab": "Documentation",
+        "groups": [
+          {
+            "group": "Get Started",
+            "pages": [
+              "introduction",
+              "installation",
+              "quickstart"
+            ]
+          },
+          {
+            "group": "Commands",
+            "pages": [
+              "commands/generate",
+              "commands/interactive"
+            ]
+          },
+          {
+            "group": "Configuration",
+            "pages": [
+              "configuration/overview",
+              "configuration/file-format",
+              "configuration/cli-options"
+            ]
+          },
+          {
+            "group": "Generators",
+            "pages": [
+              "generators/overview",
+              "generators/built-in",
+              "generators/creating-custom",
+              "generators/parallel-processing"
+            ]
+          },
+          {
+            "group": "Advanced",
+            "pages": [
+              "advanced/architecture",
+              "advanced/worker-threads",
+              "advanced/streaming",
+              "advanced/custom-commands",
+              "advanced/comparators"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "API Reference",
+        "groups": [
+          {
+            "group": "Core API",
+            "pages": [
+              "api/generators",
+              "api/configuration",
+              "api/logger",
+              "api/metadata",
+              "api/parsers"
+            ]
+          },
+          {
+            "group": "Generator Types",
+            "pages": [
+              "api/generators/web",
+              "api/generators/legacy-html",
+              "api/generators/legacy-json",
+              "api/generators/json-simple",
+              "api/generators/man-page",
+              "api/generators/orama-db",
+              "api/generators/llms-txt",
+              "api/generators/addon-verify",
+              "api/generators/api-links",
+              "api/generators/sitemap"
+            ]
+          },
+          {
+            "group": "Utilities",
+            "pages": [
+              "api/utils/streaming",
+              "api/utils/threading",
+              "api/utils/file-operations"
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "keyFeatures": [
+    "Multiple output formats (HTML, JSON, man pages, search indices)",
+    "Parallel processing with worker threads for fast generation",
+    "Streaming architecture for memory-efficient processing",
+    "Extensible generator system for custom documentation formats",
+    "Interactive CLI wizard for guided setup",
+    "Flexible configuration system",
+    "Legacy tooling compatibility mode",
+    "Built-in search index generation with Orama",
+    "Support for Node.js API documentation standards"
+  ],
+  "publicApiSurface": [
+    "doc-kit generate - Generate API documentation",
+    "doc-kit interactive - Launch guided CLI wizard",
+    "Generators: web, legacy-html, legacy-json, json-simple, man-page, orama-db, llms-txt, addon-verify, api-links, sitemap",
+    "createGenerator() - Create generator orchestration system",
+    "createLazyGenerator() - Define generator metadata",
+    "getConfig() - Get generator configuration",
+    "logger - Logging system with child loggers",
+    "createWorkerPool() - Create worker thread pool",
+    "createStreamingCache() - Create streaming result cache"
+  ]
+}
